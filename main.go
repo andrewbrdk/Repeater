@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 )
 
@@ -15,34 +17,57 @@ type Command struct {
 }
 
 func main() {
+	// Regularly scan the current directory for JSON files
+	for {
+		filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				log.Printf("Error accessing path %s: %v\n", path, err)
+				return err
+			}
+			if !info.IsDir() && filepath.Ext(path) == ".json" {
+				// Process JSON file
+				go processJSONFile(path)
+			}
+			return nil
+		})
+		time.Sleep(10 * time.Second) // Scan directory every 10 seconds
+	}
+}
+
+func processJSONFile(filePath string) {
 	// Read JSON file
-	jsonFile, err := ioutil.ReadFile("command.json")
+	jsonFile, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		log.Fatal("Error reading JSON file:", err)
+		log.Printf("Error reading JSON file %s: %v\n", filePath, err)
+		return
 	}
 
 	// Parse JSON data
 	var cmd Command
 	err = json.Unmarshal(jsonFile, &cmd)
 	if err != nil {
-		log.Fatal("Error parsing JSON:", err)
+		log.Printf("Error parsing JSON file %s: %v\n", filePath, err)
+		return
 	}
 
+	// Configure execution for valid JSON file
 	ticker := time.NewTicker(time.Duration(cmd.Frequency) * time.Second)
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
+	fmt.Printf("Configured execution for JSON file %s. Command: %s, Frequency: %d seconds\n", filePath, cmd.Cmd, cmd.Frequency)
+
+	for range ticker.C {
+		// Execute command in a separate goroutine
+		go func(cmd Command) {
 			// Execute command
 			output, err := executeCommand(cmd.Cmd)
 			if err != nil {
-				log.Println("Error executing command:", err)
+				log.Printf("Error executing command from JSON file %s: %v\n", filePath, err)
 			} else {
 				// Print output to console
-				fmt.Println(output)
+				fmt.Printf("Output of command from JSON file %s: %s\n", filePath, output)
 			}
-		}
+		}(cmd)
 	}
 }
 
@@ -54,4 +79,3 @@ func executeCommand(command string) (string, error) {
 	}
 	return string(output), nil
 }
-
