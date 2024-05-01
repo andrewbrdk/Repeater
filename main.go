@@ -1,20 +1,52 @@
 package main
 
 import (
+    "encoding/json"
+    "fmt"
+    "io/ioutil"
     "os/exec"
     "time"
 )
 
+type Command struct {
+    Cmd       string `json:"cmd"`
+    Frequency int    `json:"frequency"`
+}
+
 func main() {
-    ticker := time.NewTicker(10 * time.Second)
+    // Read JSON file
+    jsonFile, err := ioutil.ReadFile("command.json")
+    if err != nil {
+        fmt.Println("Error reading JSON file:", err)
+        return
+    }
+
+    // Parse JSON data
+    var cmd Command
+    err = json.Unmarshal(jsonFile, &cmd)
+    if err != nil {
+        fmt.Println("Error parsing JSON:", err)
+        return
+    }
+
+    ticker := time.NewTicker(time.Duration(cmd.Frequency) * time.Minute)
     defer ticker.Stop()
 
     for {
         select {
         case <-ticker.C:
-            cmd := exec.Command("/bin/bash", "-c", "echo 'Hello World'")
-            cmd.Run()
+            // Execute command
+            executeCommand(cmd.Cmd)
         }
+    }
+}
+
+func executeCommand(command string) {
+    cmd := exec.Command("/bin/bash", "-c", command)
+    err := cmd.Run()
+    if err != nil {
+        fmt.Println("Error executing command:", err)
+        return
     }
 }
 
