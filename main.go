@@ -10,10 +10,15 @@ import (
 	"path/filepath"
 )
 
+type Task struct {
+	Name  string  `json:"name"`
+	Cmd   string  `json:"cmd"`
+}
+
 type DAG struct {
-	Title     string `json:"title"`
-	Cmd       string `json:"cmd"`
-	Frequency int    `json:"frequency"`
+	Title     string  `json:"title"`
+	Frequency int     `json:"frequency"`
+	Tasks     []*Task `json:"tasks"`
 }
 
 type DAGList struct {
@@ -69,21 +74,23 @@ func add_new_dag(path string, dag *DAG, dags *DAGList) {
 		}
 	}
 	dags.DAGS = append(dags.DAGS, dag)
-	fmt.Printf("Added DAG from JSON file %s. Title: %s\n", path, dag.Title)
+	fmt.Printf("Added DAG '%s' from file %s.\n", dag.Title, path)
 }
 
 func run_dags(dags *DAGList) {
 	for _, d := range dags.DAGS {
-		run_dag_cmd(d)
+		run_dag_tasks(d)
 	}
 }
 
-func run_dag_cmd(dag *DAG) {
-	output, err := executeCommand(dag.Cmd)
-	if err != nil {
-		log.Printf("Error executing command with title '%s': %v\n", dag.Title, err)
-	} else {
-		fmt.Printf("Output of command with title '%s': %s\n", dag.Title, output)
+func run_dag_tasks(dag *DAG) {
+	for _, t := range dag.Tasks {
+		output, err := executeCommand(t.Cmd)
+		if err != nil {
+			log.Printf("Error executing command in DAG '%s', task '%s': %v\n", dag.Title, t.Name, err)
+		} else {
+			fmt.Printf("DAG '%s', task '%s', output: %s\n", dag.Title, t.Name, output)
+		}
 	}
 }
 

@@ -1,0 +1,15 @@
+{
+    "title": "hello",
+    "frequency": 1,
+    "tasks": [
+        {
+            "name": "h",
+            "cmd": "echo Hello"
+        },
+        {
+            "name": "w", 
+            "cmd": "echo world"
+        }
+    ]
+}
+

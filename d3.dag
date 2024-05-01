@@ -1,0 +1,11 @@
+{
+    "title": "d3",
+    "frequency": 3,
+    "tasks": [
+        {
+            "name": "t3",
+            "cmd": "echo 3"
+        }
+    ]
+}
+
