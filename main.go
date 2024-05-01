@@ -1,7 +1,7 @@
 package main
 
 import (
-    "fmt"
+    "os/exec"
     "time"
 )
 
@@ -12,7 +12,8 @@ func main() {
     for {
         select {
         case <-ticker.C:
-            fmt.Println("Hello World")
+            cmd := exec.Command("/bin/bash", "-c", "echo 'Hello World'")
+            cmd.Run()
         }
     }
 }
