@@ -28,8 +28,8 @@ func main() {
 }
 
 func scan_dags_dir(dags *DAGList) {
-  dir := "./"
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	dir := "./"
+	f := func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Printf("Error accessing path %s: %v\n", path, err)
 			return err
@@ -42,7 +42,8 @@ func scan_dags_dir(dags *DAGList) {
 			add_new_dag(path, dag, dags)
 		}
 		return nil
-	})
+	}
+	filepath.Walk(dir, f)
 }
 
 func processJSONFile(filePath string) (*DAG, error) {
@@ -57,11 +58,10 @@ func processJSONFile(filePath string) (*DAG, error) {
 		log.Printf("Error parsing JSON file %s: %v\n", filePath, err)
 		return nil, err
 	}
-
-  return &dag, err
+	return &dag, err
 }
 
-func add_new_dag(path string, dag *DAG, dags *DAGList){
+func add_new_dag(path string, dag *DAG, dags *DAGList) {
 	for _, existing := range dags.DAGS {
 		if existing.Title == dag.Title {
 			log.Printf("DAG with title '%s' already exists, skipping processing.\n", dag.Title)
@@ -73,18 +73,18 @@ func add_new_dag(path string, dag *DAG, dags *DAGList){
 }
 
 func run_dags(dags *DAGList) {
-		for _, d := range dags.DAGS {
-			run_dag_cmd(d)
-		}
+	for _, d := range dags.DAGS {
+		run_dag_cmd(d)
+	}
 }
 
 func run_dag_cmd(dag *DAG) {
-		output, err := executeCommand(dag.Cmd)
-		if err != nil {
-			log.Printf("Error executing command with title '%s': %v\n", dag.Title, err)
-		} else {
-			fmt.Printf("Output of command with title '%s': %s\n", dag.Title, output)
-		}
+	output, err := executeCommand(dag.Cmd)
+	if err != nil {
+		log.Printf("Error executing command with title '%s': %v\n", dag.Title, err)
+	} else {
+		fmt.Printf("Output of command with title '%s': %s\n", dag.Title, output)
+	}
 }
 
 func executeCommand(command string) (string, error) {
