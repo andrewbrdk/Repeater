@@ -34,7 +34,7 @@ func scan_dags_dir(dags *DAGList) {
 			log.Printf("Error accessing path %s: %v\n", path, err)
 			return err
 		}
-		if !info.IsDir() && filepath.Ext(path) == ".json" {
+		if !info.IsDir() && filepath.Ext(path) == ".dag" {
 			dag, err := processJSONFile(path)
 			if err != nil {
 				return err
