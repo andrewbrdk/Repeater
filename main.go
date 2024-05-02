@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/robfig/cron/v3"
 )
 
 type Task struct {
@@ -16,22 +18,27 @@ type Task struct {
 }
 
 type DAG struct {
-	Title     string  `json:"title"`
-	Frequency int     `json:"frequency"`
-	Tasks     []*Task `json:"tasks"`
+	Title       string   `json:"title"`
+	Cron        string   `json:"cron"`
+	Tasks       []*Task  `json:"tasks"`
+	cronID      cron.EntryID
+	cronJobFunc cron.FuncJob
 }
 
 type DAGList struct {
-	DAGS []*DAG
+	DAGs []*DAG
 }
 
 func main() {
 	var dags DAGList
-	scanDAGSDir(&dags)
-	runDAGS(&dags)
+	c := cron.New()
+	scanDAGsDir(&dags)
+	runDAGs(&dags, c)
+	c.Start()
+	select {}
 }
 
-func scanDAGSDir(dags *DAGList) {
+func scanDAGsDir(dags *DAGList) {
 	dir := "./"
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -68,23 +75,26 @@ func processJSONFile(filePath string) (*DAG, error) {
 }
 
 func addNewDAG(path string, dag *DAG, dags *DAGList) {
-	for _, existing := range dags.DAGS {
+	for _, existing := range dags.DAGs {
 		if existing.Title == dag.Title {
 			log.Printf("DAG with title '%s' already exists, skipping processing.\n", dag.Title)
 			return
 		}
 	}
-	dags.DAGS = append(dags.DAGS, dag)
+	dags.DAGs = append(dags.DAGs, dag)
 	fmt.Printf("Added DAG '%s' from file %s.\n", dag.Title, path)
 }
 
-func runDAGS(dags *DAGList) {
-	for _, d := range dags.DAGS {
-		runDAGTasks(d)
-	}
+func runDAGs(dags *DAGList, c *cron.Cron) {
+    for _, d := range dags.DAGs {
+        d := d // Capture d variable
+        d.cronJobFunc = func() { runDAGTasks(d) }
+        d.cronID, _ = c.AddFunc(d.Cron, d.cronJobFunc)
+    }
 }
 
 func runDAGTasks(dag *DAG) {
+	fmt.Printf("Running DAG '%s'\n", dag.Title)
 	for _, t := range dag.Tasks {
 		output, err := executeCommand(t.Cmd)
 		if err != nil {
@@ -103,3 +113,4 @@ func executeCommand(command string) (string, error) {
 	}
 	return string(output), nil
 }
+

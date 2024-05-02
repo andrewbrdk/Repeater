@@ -1,6 +1,6 @@
 {
     "title": "d2",
-    "frequency": 2,
+    "cron": "* * * * *",
     "tasks": [
         {
             "name": "t2",
