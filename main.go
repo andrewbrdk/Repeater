@@ -11,8 +11,8 @@ import (
 )
 
 type Task struct {
-	Name  string  `json:"name"`
-	Cmd   string  `json:"cmd"`
+	Name string `json:"name"`
+	Cmd  string `json:"cmd"`
 }
 
 type DAG struct {
@@ -27,14 +27,13 @@ type DAGList struct {
 
 func main() {
 	var dags DAGList
-	//todo: rescan dags dir
-	scan_dags_dir(&dags)
-	run_dags(&dags)
+	scanDAGSDir(&dags)
+	runDAGS(&dags)
 }
 
-func scan_dags_dir(dags *DAGList) {
+func scanDAGSDir(dags *DAGList) {
 	dir := "./"
-	f := func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Printf("Error accessing path %s: %v\n", path, err)
 			return err
@@ -44,11 +43,13 @@ func scan_dags_dir(dags *DAGList) {
 			if err != nil {
 				return err
 			}
-			add_new_dag(path, dag, dags)
+			addNewDAG(path, dag, dags)
 		}
 		return nil
+	})
+	if err != nil {
+		log.Fatal(err)
 	}
-	filepath.Walk(dir, f)
 }
 
 func processJSONFile(filePath string) (*DAG, error) {
@@ -63,10 +64,10 @@ func processJSONFile(filePath string) (*DAG, error) {
 		log.Printf("Error parsing JSON file %s: %v\n", filePath, err)
 		return nil, err
 	}
-	return &dag, err
+	return &dag, nil
 }
 
-func add_new_dag(path string, dag *DAG, dags *DAGList) {
+func addNewDAG(path string, dag *DAG, dags *DAGList) {
 	for _, existing := range dags.DAGS {
 		if existing.Title == dag.Title {
 			log.Printf("DAG with title '%s' already exists, skipping processing.\n", dag.Title)
@@ -77,13 +78,13 @@ func add_new_dag(path string, dag *DAG, dags *DAGList) {
 	fmt.Printf("Added DAG '%s' from file %s.\n", dag.Title, path)
 }
 
-func run_dags(dags *DAGList) {
+func runDAGS(dags *DAGList) {
 	for _, d := range dags.DAGS {
-		run_dag_tasks(d)
+		runDAGTasks(d)
 	}
 }
 
-func run_dag_tasks(dag *DAG) {
+func runDAGTasks(dag *DAG) {
 	for _, t := range dag.Tasks {
 		output, err := executeCommand(t.Cmd)
 		if err != nil {
