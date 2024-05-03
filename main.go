@@ -14,6 +14,9 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+const Port = ":8080"
+const DagDir = "./"
+
 type Task struct {
 	Name string `json:"name"`
 	Cmd  string `json:"cmd"`
@@ -25,7 +28,6 @@ type DAG struct {
 	Tasks       []*Task `json:"tasks"`
 	cronID      cron.EntryID
 	cronJobFunc cron.FuncJob
-	NextRun     time.Time
 }
 
 type DAGList struct {
@@ -35,25 +37,32 @@ type DAGList struct {
 func main() {
 	var dags DAGList
 	c := cron.New(cron.WithSeconds())
-	scanDAGsDir(&dags, c)
-	runDAGs(&dags, c)
 	c.Start()
+	scanDAGsDir(&dags)
+	runDAGs(&dags, c)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		listDAGs(w, dags)
+		listDAGs(w, dags, c)
 	})
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(Port, nil))
 }
 
-func listDAGs(w http.ResponseWriter, dags DAGList) {
+func listDAGs(w http.ResponseWriter, dags DAGList, c *cron.Cron) {
+	var NextRun time.Time
 	for _, d := range dags.DAGs {
-		fmt.Fprintf(w, "DAG: %s, Next Run: %s\n", d.Title, d.NextRun)
+		for _, e := range c.Entries() {
+			if d.cronID == e.ID {
+				NextRun = e.Next
+			}
+		}
+		fmt.Fprintf(w, "%d, %d", len(c.Entries()), d.cronID)
+		fmt.Fprintf(w, "DAG: %s, Next Run: %s\n", d.Title, NextRun)
 	}
 }
 
-func scanDAGsDir(dags *DAGList, c *cron.Cron) {
-	dir := "./"
+func scanDAGsDir(dags *DAGList) {
+	dir := DagDir
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Printf("Error accessing path %s: %v\n", path, err)
