@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/robfig/cron/v3"
 )
@@ -23,6 +25,7 @@ type DAG struct {
 	Tasks       []*Task `json:"tasks"`
 	cronID      cron.EntryID
 	cronJobFunc cron.FuncJob
+	NextRun     time.Time
 }
 
 type DAGList struct {
@@ -32,13 +35,24 @@ type DAGList struct {
 func main() {
 	var dags DAGList
 	c := cron.New(cron.WithSeconds())
-	scanDAGsDir(&dags)
+	scanDAGsDir(&dags, c)
 	runDAGs(&dags, c)
 	c.Start()
-	select {}
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		listDAGs(w, dags)
+	})
+
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-func scanDAGsDir(dags *DAGList) {
+func listDAGs(w http.ResponseWriter, dags DAGList) {
+	for _, d := range dags.DAGs {
+		fmt.Fprintf(w, "DAG: %s, Next Run: %s\n", d.Title, d.NextRun)
+	}
+}
+
+func scanDAGsDir(dags *DAGList, c *cron.Cron) {
 	dir := "./"
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
