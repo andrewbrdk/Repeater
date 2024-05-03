@@ -1,4 +1,4 @@
-module gosched
+module miniflow
 
 go 1.19
 

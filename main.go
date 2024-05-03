@@ -18,9 +18,9 @@ type Task struct {
 }
 
 type DAG struct {
-	Title       string   `json:"title"`
-	Cron        string   `json:"cron"`
-	Tasks       []*Task  `json:"tasks"`
+	Title       string  `json:"title"`
+	Cron        string  `json:"cron"`
+	Tasks       []*Task `json:"tasks"`
 	cronID      cron.EntryID
 	cronJobFunc cron.FuncJob
 }
@@ -31,7 +31,7 @@ type DAGList struct {
 
 func main() {
 	var dags DAGList
-	c := cron.New()
+	c := cron.New(cron.WithSeconds())
 	scanDAGsDir(&dags)
 	runDAGs(&dags, c)
 	c.Start()
@@ -86,11 +86,11 @@ func addNewDAG(path string, dag *DAG, dags *DAGList) {
 }
 
 func runDAGs(dags *DAGList, c *cron.Cron) {
-    for _, d := range dags.DAGs {
-        d := d // Capture d variable
-        d.cronJobFunc = func() { runDAGTasks(d) }
-        d.cronID, _ = c.AddFunc(d.Cron, d.cronJobFunc)
-    }
+	for _, d := range dags.DAGs {
+		d := d // Capture d variable
+		d.cronJobFunc = func() { runDAGTasks(d) }
+		d.cronID, _ = c.AddFunc(d.Cron, d.cronJobFunc)
+	}
 }
 
 func runDAGTasks(dag *DAG) {
@@ -113,4 +113,3 @@ func executeCommand(command string) (string, error) {
 	}
 	return string(output), nil
 }
-

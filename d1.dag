@@ -1,6 +1,6 @@
 {
     "title": "hello",
-    "cron": "* * * * *",
+    "cron": "*/3 * * * * *",
     "tasks": [
         {
             "name": "h",
