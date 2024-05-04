@@ -22,12 +22,19 @@ type Task struct {
 	Cmd  string `json:"cmd"`
 }
 
+type Run struct {
+	StartTime time.Time
+	EndTime   time.Time
+	Status    string
+}
+
 type DAG struct {
 	Title       string  `json:"title"`
 	Cron        string  `json:"cron"`
 	Tasks       []*Task `json:"tasks"`
 	cronID      cron.EntryID
 	cronJobFunc cron.FuncJob
+	History     []*Run
 }
 
 type DAGList struct {
@@ -49,15 +56,29 @@ func main() {
 }
 
 func listDAGs(w http.ResponseWriter, dags DAGList, c *cron.Cron) {
-	var NextRun time.Time
 	for _, d := range dags.DAGs {
+		nextRun := ""
 		for _, e := range c.Entries() {
 			if d.cronID == e.ID {
-				NextRun = e.Next
+				nextRun = e.Next.String()
+				break
 			}
 		}
-		fmt.Fprintf(w, "%d, %d", len(c.Entries()), d.cronID)
-		fmt.Fprintf(w, "DAG: %s, Next Run: %s\n", d.Title, NextRun)
+
+		fmt.Fprintf(w, "DAG: %s (Next Run: %s)\n", d.Title, nextRun)
+
+		if len(d.History) == 0 {
+			fmt.Fprintf(w, "  No execution history\n")
+		} else {
+			fmt.Fprintf(w, "  Execution History:\n")
+			for i := len(d.History) - 1; i >= 0; i-- {
+				run := d.History[i]
+				fmt.Fprintf(w, "    Run %d:\n", i)
+				fmt.Fprintf(w, "      Start Time: %s\n", run.StartTime)
+				fmt.Fprintf(w, "      End Time: %s\n", run.EndTime)
+				fmt.Fprintf(w, "      Status: %s\n", run.Status)
+			}
+		}
 	}
 }
 
@@ -118,14 +139,23 @@ func runDAGs(dags *DAGList, c *cron.Cron) {
 
 func runDAGTasks(dag *DAG) {
 	fmt.Printf("Running DAG '%s'\n", dag.Title)
+
+	run := &Run{StartTime: time.Now()}
+	defer func() {
+		run.EndTime = time.Now()
+		dag.History = append(dag.History, run)
+	}()
+
 	for _, t := range dag.Tasks {
 		output, err := executeCommand(t.Cmd)
 		if err != nil {
 			log.Printf("Error executing command in DAG '%s', task '%s': %v\n", dag.Title, t.Name, err)
-		} else {
-			fmt.Printf("DAG '%s', task '%s', output: %s\n", dag.Title, t.Name, output)
+			run.Status = "failure"
+			return
 		}
+		fmt.Printf("DAG '%s', task '%s', output: %s\n", dag.Title, t.Name, output)
 	}
+	run.Status = "success"
 }
 
 func executeCommand(command string) (string, error) {
