@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"html/template"
+	"net/http"
 
 	"github.com/robfig/cron/v3"
 )
@@ -56,6 +58,23 @@ func main() {
 }
 
 func listDAGs(w http.ResponseWriter, dags DAGList, c *cron.Cron) {
+	tmpl := template.Must(template.ParseFiles("dag_list.html"))
+
+	type TemplateData struct {
+		DAGs []*DAG
+	}
+
+	data := TemplateData{DAGs: dags.DAGs}
+
+	err := tmpl.Execute(w, data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+/*
+func listDAGs(w http.ResponseWriter, dags DAGList, c *cron.Cron) {
 	for _, d := range dags.DAGs {
 		nextRun := ""
 		for _, e := range c.Entries() {
@@ -81,6 +100,7 @@ func listDAGs(w http.ResponseWriter, dags DAGList, c *cron.Cron) {
 		}
 	}
 }
+*/
 
 func scanDAGsDir(dags *DAGList) {
 	dir := DagDir
