@@ -3,15 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"html/template"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
-
-	"html/template"
-	"net/http"
 
 	"github.com/robfig/cron/v3"
 )
@@ -73,35 +71,6 @@ func listDAGs(w http.ResponseWriter, dags DAGList, c *cron.Cron) {
 	}
 }
 
-/*
-func listDAGs(w http.ResponseWriter, dags DAGList, c *cron.Cron) {
-	for _, d := range dags.DAGs {
-		nextRun := ""
-		for _, e := range c.Entries() {
-			if d.cronID == e.ID {
-				nextRun = e.Next.String()
-				break
-			}
-		}
-
-		fmt.Fprintf(w, "DAG: %s (Next Run: %s)\n", d.Title, nextRun)
-
-		if len(d.History) == 0 {
-			fmt.Fprintf(w, "  No execution history\n")
-		} else {
-			fmt.Fprintf(w, "  Execution History:\n")
-			for i := len(d.History) - 1; i >= 0; i-- {
-				run := d.History[i]
-				fmt.Fprintf(w, "    Run %d:\n", i)
-				fmt.Fprintf(w, "      Start Time: %s\n", run.StartTime)
-				fmt.Fprintf(w, "      End Time: %s\n", run.EndTime)
-				fmt.Fprintf(w, "      Status: %s\n", run.Status)
-			}
-		}
-	}
-}
-*/
-
 func scanDAGsDir(dags *DAGList) {
 	dir := DagDir
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -125,7 +94,7 @@ func scanDAGsDir(dags *DAGList) {
 
 func processJSONFile(filePath string) (*DAG, error) {
 	var dag DAG
-	jsonFile, err := ioutil.ReadFile(filePath)
+	jsonFile, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Printf("Error reading JSON file %s: %v\n", filePath, err)
 		return nil, err
