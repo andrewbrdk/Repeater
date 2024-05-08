@@ -85,7 +85,10 @@ func main() {
 	c.Start()
 	scanDAGsDir(&dags)
 	runDAGs(&dags, c)
+	webServer(&dags, c)
+}
 
+func webServer(dags *DAGList, c *cron.Cron) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		listDAGs(w, dags)
 	})
@@ -93,7 +96,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(Port, nil))
 }
 
-func listDAGs(w http.ResponseWriter, dags DAGList) {
+func listDAGs(w http.ResponseWriter, dags *DAGList) {
 	tmpl := template.New("tmpl")
 	tmpl = template.Must(tmpl.Parse(WebDAGsList))
 
