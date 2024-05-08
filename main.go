@@ -17,6 +17,44 @@ import (
 const Port = ":8080"
 const DagDir = "./"
 
+const WebDAGsList = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DAG List</title>
+</head>
+<body>
+    <h1>DAG List</h1>
+    <ul>
+        {{range .DAGs}}
+        <li>
+            <strong>{{.Title}}</strong> (Next Run: ?)
+            {{if .History}}
+            <ul>
+                {{range $i, $h := .History}}
+                <li>
+                    Run {{$i}}:
+                    <ul>
+                        <li>Start Time: {{$h.StartTime}}</li>
+                        <li>End Time: {{$h.EndTime}}</li>
+                        <li>Status: {{$h.Status}}</li>
+                    </ul>
+                </li>
+                {{end}}
+            </ul>
+            {{else}}
+                <li>No execution history</li>
+            </ul>
+            {{end}}
+        </li>
+        {{end}}
+    </ul>
+</body>
+</html>
+`
+
 type Task struct {
 	Name string `json:"name"`
 	Cmd  string `json:"cmd"`
@@ -49,22 +87,17 @@ func main() {
 	runDAGs(&dags, c)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		listDAGs(w, dags, c)
+		listDAGs(w, dags)
 	})
 
 	log.Fatal(http.ListenAndServe(Port, nil))
 }
 
-func listDAGs(w http.ResponseWriter, dags DAGList, c *cron.Cron) {
-	tmpl := template.Must(template.ParseFiles("dag_list.html"))
+func listDAGs(w http.ResponseWriter, dags DAGList) {
+	tmpl := template.New("tmpl")
+	tmpl = template.Must(tmpl.Parse(WebDAGsList))
 
-	type TemplateData struct {
-		DAGs []*DAG
-	}
-
-	data := TemplateData{DAGs: dags.DAGs}
-
-	err := tmpl.Execute(w, data)
+	err := tmpl.Execute(w, dags)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
