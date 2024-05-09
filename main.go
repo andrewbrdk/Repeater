@@ -37,8 +37,8 @@ const webTasksList = `
                 <li>
                     Run {{$i}}:
                     <ul>
-                        <li>Start Time: {{$h.StartTime}}</li>
-                        <li>End Time: {{$h.EndTime}}</li>
+                        <li>Start Time: {{$h.StartTime.Format "2006-01-02 15:04:05"}}</li>
+                        <li>End Time: {{$h.EndTime.Format "2006-01-02 15:04:05"}}</li>
                         <li>Status: {{$h.Status}}</li>
                     </ul>
                 </li>
@@ -85,10 +85,10 @@ func main() {
 	c.Start()
 	scanTasks(&tasks)
 	runTasks(&tasks, c)
-	webServer(&tasks, c)
+	webServer(&tasks)
 }
 
-func webServer(tasks *AllTasks, c *cron.Cron) {
+func webServer(tasks *AllTasks) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		listTasks(w, tasks)
 	})
@@ -119,7 +119,7 @@ func scanTasks(tasks *AllTasks) {
 			if err != nil {
 				return err
 			}
-			addNewTask(path, task, tasks)
+			addTask(path, task, tasks)
 		}
 		return nil
 	})
@@ -143,7 +143,7 @@ func processJSONFile(filePath string) (*Task, error) {
 	return &task, nil
 }
 
-func addNewTask(path string, task *Task, tasks *AllTasks) {
+func addTask(path string, task *Task, tasks *AllTasks) {
 	for _, existing := range tasks.Tasks {
 		if existing.Title == task.Title {
 			log.Printf("Task with title '%s' already exists, skipping processing.\n", task.Title)
