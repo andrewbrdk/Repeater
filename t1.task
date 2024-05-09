@@ -1,7 +1,7 @@
 {
     "title": "hello",
     "cron": "*/3 * * * * *",
-    "tasks": [
+    "commands": [
         {
             "name": "h",
             "cmd": "echo Hello"

@@ -1,9 +1,9 @@
 {
-    "title": "d2",
+    "title": "t2",
     "cron": "*/6 * * * * *",
-    "tasks": [
+    "commands": [
         {
-            "name": "t2",
+            "name": "c2",
             "cmd": "echo 2"
         }
     ]

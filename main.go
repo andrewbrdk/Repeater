@@ -14,21 +14,21 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-const Port = ":8080"
-const DagDir = "./"
+const port = ":8080"
+const tasksDir = "./"
 
-const WebDAGsList = `
+const webTasksList = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DAG List</title>
+    <title>Tasks</title>
 </head>
 <body>
-    <h1>DAG List</h1>
+    <h1>Tasks</h1>
     <ul>
-        {{range .DAGs}}
+        {{range .Tasks}}
         <li>
             <strong>{{.Title}}</strong> (Next Run: ?)
             {{if .History}}
@@ -55,7 +55,7 @@ const WebDAGsList = `
 </html>
 `
 
-type Task struct {
+type Command struct {
 	Name string `json:"name"`
 	Cmd  string `json:"cmd"`
 }
@@ -66,60 +66,60 @@ type Run struct {
 	Status    string
 }
 
-type DAG struct {
-	Title       string  `json:"title"`
-	Cron        string  `json:"cron"`
-	Tasks       []*Task `json:"tasks"`
+type Task struct {
+	Title       string     `json:"title"`
+	Cron        string     `json:"cron"`
+	Commands    []*Command `json:"commands"`
 	cronID      cron.EntryID
 	cronJobFunc cron.FuncJob
 	History     []*Run
 }
 
-type DAGList struct {
-	DAGs []*DAG
+type AllTasks struct {
+	Tasks []*Task
 }
 
 func main() {
-	var dags DAGList
+	var tasks AllTasks
 	c := cron.New(cron.WithSeconds())
 	c.Start()
-	scanDAGsDir(&dags)
-	runDAGs(&dags, c)
-	webServer(&dags, c)
+	scanTasks(&tasks)
+	runTasks(&tasks, c)
+	webServer(&tasks, c)
 }
 
-func webServer(dags *DAGList, c *cron.Cron) {
+func webServer(tasks *AllTasks, c *cron.Cron) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		listDAGs(w, dags)
+		listTasks(w, tasks)
 	})
 
-	log.Fatal(http.ListenAndServe(Port, nil))
+	log.Fatal(http.ListenAndServe(port, nil))
 }
 
-func listDAGs(w http.ResponseWriter, dags *DAGList) {
+func listTasks(w http.ResponseWriter, tasks *AllTasks) {
 	tmpl := template.New("tmpl")
-	tmpl = template.Must(tmpl.Parse(WebDAGsList))
+	tmpl = template.Must(tmpl.Parse(webTasksList))
 
-	err := tmpl.Execute(w, dags)
+	err := tmpl.Execute(w, tasks)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
 
-func scanDAGsDir(dags *DAGList) {
-	dir := DagDir
+func scanTasks(tasks *AllTasks) {
+	dir := tasksDir
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Printf("Error accessing path %s: %v\n", path, err)
 			return err
 		}
-		if !info.IsDir() && filepath.Ext(path) == ".dag" {
-			dag, err := processJSONFile(path)
+		if !info.IsDir() && filepath.Ext(path) == ".task" {
+			task, err := processJSONFile(path)
 			if err != nil {
 				return err
 			}
-			addNewDAG(path, dag, dags)
+			addNewTask(path, task, tasks)
 		}
 		return nil
 	})
@@ -128,57 +128,57 @@ func scanDAGsDir(dags *DAGList) {
 	}
 }
 
-func processJSONFile(filePath string) (*DAG, error) {
-	var dag DAG
+func processJSONFile(filePath string) (*Task, error) {
+	var task Task
 	jsonFile, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Printf("Error reading JSON file %s: %v\n", filePath, err)
 		return nil, err
 	}
-	err = json.Unmarshal(jsonFile, &dag)
+	err = json.Unmarshal(jsonFile, &task)
 	if err != nil {
 		log.Printf("Error parsing JSON file %s: %v\n", filePath, err)
 		return nil, err
 	}
-	return &dag, nil
+	return &task, nil
 }
 
-func addNewDAG(path string, dag *DAG, dags *DAGList) {
-	for _, existing := range dags.DAGs {
-		if existing.Title == dag.Title {
-			log.Printf("DAG with title '%s' already exists, skipping processing.\n", dag.Title)
+func addNewTask(path string, task *Task, tasks *AllTasks) {
+	for _, existing := range tasks.Tasks {
+		if existing.Title == task.Title {
+			log.Printf("Task with title '%s' already exists, skipping processing.\n", task.Title)
 			return
 		}
 	}
-	dags.DAGs = append(dags.DAGs, dag)
-	fmt.Printf("Added DAG '%s' from file %s.\n", dag.Title, path)
+	tasks.Tasks = append(tasks.Tasks, task)
+	fmt.Printf("Added task '%s' from file %s.\n", task.Title, path)
 }
 
-func runDAGs(dags *DAGList, c *cron.Cron) {
-	for _, d := range dags.DAGs {
-		d := d // Capture d variable
-		d.cronJobFunc = func() { runDAGTasks(d) }
-		d.cronID, _ = c.AddFunc(d.Cron, d.cronJobFunc)
+func runTasks(tasks *AllTasks, c *cron.Cron) {
+	for _, t := range tasks.Tasks {
+		t := t // Capture d variable
+		t.cronJobFunc = func() { runTaskCommands(t) }
+		t.cronID, _ = c.AddFunc(t.Cron, t.cronJobFunc)
 	}
 }
 
-func runDAGTasks(dag *DAG) {
-	fmt.Printf("Running DAG '%s'\n", dag.Title)
+func runTaskCommands(task *Task) {
+	fmt.Printf("Running task '%s'\n", task.Title)
 
 	run := &Run{StartTime: time.Now()}
 	defer func() {
 		run.EndTime = time.Now()
-		dag.History = append(dag.History, run)
+		task.History = append(task.History, run)
 	}()
 
-	for _, t := range dag.Tasks {
-		output, err := executeCommand(t.Cmd)
+	for _, c := range task.Commands {
+		output, err := executeCommand(c.Cmd)
 		if err != nil {
-			log.Printf("Error executing command in DAG '%s', task '%s': %v\n", dag.Title, t.Name, err)
+			log.Printf("Error executing '%s'-'%s': %v\n", task.Title, c.Name, err)
 			run.Status = "failure"
 			return
 		}
-		fmt.Printf("DAG '%s', task '%s', output: %s\n", dag.Title, t.Name, output)
+		fmt.Printf("Task '%s', command '%s', output: %s\n", task.Title, c.Name, output)
 	}
 	run.Status = "success"
 }
