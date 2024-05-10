@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"html/template"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -26,30 +27,24 @@ const webTasksList = `
 </head>
 <body>
     <h1>Tasks</h1>
-    <ul>
-        {{range .Tasks}}
-        <li>
-            <strong>{{.Title}}</strong> {{.Cron}}
-            {{if .History}}
-            <ul>
-                {{range $i, $h := .History}}
-                <li>
-                    Run {{$i}}:
-                    <ul>
-                        <li>Start Time: {{$h.StartTime.Format "2006-01-02 15:04:05"}}</li>
-                        <li>End Time: {{$h.EndTime.Format "2006-01-02 15:04:05"}}</li>
-                        <li>Status: {{$h.Status}}</li>
-                    </ul>
-                </li>
-                {{end}}
-            </ul>
-            {{else}}
-                <li>No execution history</li>
-            </ul>
-            {{end}}
-        </li>
-        {{end}}
-    </ul>
+    {{range .Tasks}}
+    	<div>
+		<details open>
+		<summary><strong>{{.Title}}</strong> {{.Cron}}</summary>
+		<ul>
+		{{if .History}}
+    		{{range $i, $h := .History}}
+        	<li>
+				Run {{$h.StartTime.Format "2006-01-02 15:04:05"}}: {{$h.Status}}.
+			</li>
+    		{{end}}
+    	{{else}}
+        	<li>No execution history</li>
+    	{{end}}
+		</ul>
+		</details>
+		</div>
+    {{end}}
 </body>
 </html>
 `
@@ -80,7 +75,10 @@ type AllTasks struct {
 
 func main() {
 	var tasks AllTasks
-	c := cron.New(cron.WithSeconds())
+	//logger := slog.New()
+	c := cron.New(
+		cron.WithSeconds(),
+		cron.WithLogger(cron.VerbosePrintfLogger(log.New(os.Stdout, "cron: ", log.LstdFlags))))
 	c.Start()
 	scanTasks(&tasks)
 	runTasks(&tasks, c)
