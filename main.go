@@ -2,15 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
+	"github.com/gookit/slog"
 	"github.com/robfig/cron/v3"
 )
 
@@ -30,7 +29,7 @@ const webTasksList = `
     <ul>
         {{range .Tasks}}
         <li>
-            <strong>{{.Title}}</strong> (Next Run: ?)
+            <strong>{{.Title}}</strong> {{.Cron}}
             {{if .History}}
             <ul>
                 {{range $i, $h := .History}}
@@ -92,8 +91,7 @@ func webServer(tasks *AllTasks) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		listTasks(w, tasks)
 	})
-
-	log.Fatal(http.ListenAndServe(port, nil))
+	slog.Fatal(http.ListenAndServe(port, nil))
 }
 
 func listTasks(w http.ResponseWriter, tasks *AllTasks) {
@@ -111,10 +109,10 @@ func scanTasks(tasks *AllTasks) {
 	dir := tasksDir
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			log.Printf("Error accessing path %s: %v\n", path, err)
+			slog.Error("Error accessing path %s: %v\n", path, err)
 			return err
 		}
-		if !info.IsDir() && filepath.Ext(path) == ".task" {
+		if !info.IsDir() && filepath.Ext(path) == ".tasks" {
 			task, err := processJSONFile(path)
 			if err != nil {
 				return err
@@ -124,7 +122,7 @@ func scanTasks(tasks *AllTasks) {
 		return nil
 	})
 	if err != nil {
-		log.Fatal(err)
+		slog.Fatal(err)
 	}
 }
 
@@ -132,12 +130,12 @@ func processJSONFile(filePath string) (*Task, error) {
 	var task Task
 	jsonFile, err := os.ReadFile(filePath)
 	if err != nil {
-		log.Printf("Error reading JSON file %s: %v\n", filePath, err)
+		slog.Error("Error reading JSON file %s: %v\n", filePath, err)
 		return nil, err
 	}
 	err = json.Unmarshal(jsonFile, &task)
 	if err != nil {
-		log.Printf("Error parsing JSON file %s: %v\n", filePath, err)
+		slog.Error("Error parsing JSON file %s: %v\n", filePath, err)
 		return nil, err
 	}
 	return &task, nil
@@ -146,12 +144,12 @@ func processJSONFile(filePath string) (*Task, error) {
 func addTask(path string, task *Task, tasks *AllTasks) {
 	for _, existing := range tasks.Tasks {
 		if existing.Title == task.Title {
-			log.Printf("Task with title '%s' already exists, skipping processing.\n", task.Title)
+			slog.Info("Task with title '%s' already exists, skipping processing.\n", task.Title)
 			return
 		}
 	}
 	tasks.Tasks = append(tasks.Tasks, task)
-	fmt.Printf("Added task '%s' from file %s.\n", task.Title, path)
+	slog.Info("Added task '%s' from file %s.\n", task.Title, path)
 }
 
 func runTasks(tasks *AllTasks, c *cron.Cron) {
@@ -163,7 +161,7 @@ func runTasks(tasks *AllTasks, c *cron.Cron) {
 }
 
 func runTaskCommands(task *Task) {
-	fmt.Printf("Running task '%s'\n", task.Title)
+	slog.Info("Running task '%s'\n", task.Title)
 
 	run := &Run{StartTime: time.Now()}
 	defer func() {
@@ -174,11 +172,11 @@ func runTaskCommands(task *Task) {
 	for _, c := range task.Commands {
 		output, err := executeCommand(c.Cmd)
 		if err != nil {
-			log.Printf("Error executing '%s'-'%s': %v\n", task.Title, c.Name, err)
+			slog.Error("Error executing '%s'-'%s': %v\n", task.Title, c.Name, err)
 			run.Status = "failure"
 			return
 		}
-		fmt.Printf("Task '%s', command '%s', output: %s\n", task.Title, c.Name, output)
+		slog.Info("Task", task.Title, "command", c.Name, "output", output)
 	}
 	run.Status = "success"
 }
