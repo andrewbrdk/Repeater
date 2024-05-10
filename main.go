@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"html/template"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -75,10 +74,7 @@ type AllTasks struct {
 
 func main() {
 	var tasks AllTasks
-	//logger := slog.New()
-	c := cron.New(
-		cron.WithSeconds(),
-		cron.WithLogger(cron.VerbosePrintfLogger(log.New(os.Stdout, "cron: ", log.LstdFlags))))
+	c := cron.New(cron.WithSeconds())
 	c.Start()
 	scanTasks(&tasks)
 	runTasks(&tasks, c)
