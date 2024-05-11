@@ -204,7 +204,8 @@ func runTaskCommands(task *Task) {
 	run := &Run{StartTime: time.Now()}
 	defer func() {
 		run.EndTime = time.Now()
-		task.History = append(task.History, run)
+		//append to front to simplify web output
+		task.History = append([]*Run{run}, task.History...)
 	}()
 
 	for _, c := range task.Commands {
