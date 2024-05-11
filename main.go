@@ -27,29 +27,29 @@ const webTasksList = `
 <body>
     <h1>Tasks</h1>
     {{range .Tasks}}
-    	<div>
-		<details open>
-		<summary><strong>{{.Title}}</strong> {{.Cron}}</summary>
-		<ul>
-		{{if .History}}
-    		{{range $i, $h := .History}}
-        	<li>
-				Run {{$h.StartTime.Format "2006-01-02 15:04:05"}}: {{$h.Status.String}}.
-				<ul>
-                	{{range .Details}}
-                    <li>
-                        Command: {{.Name}}, Status: {{.Status.String}}
-                    </li>
-                    {{end}}
-                </ul>
-			</li>
-    		{{end}}
-    	{{else}}
-        	<li>No execution history</li>
-    	{{end}}
-		</ul>
-		</details>
-		</div>
+	<div>
+	<details open>
+	<summary><strong>{{.Title}}</strong> {{.Cron}}</summary>
+	<table>
+        <tr>
+            <th> Start </th>
+			<th> {{.Title}} </th>
+			{{range .Commands}}
+            	<th> {{.Name}} </th>
+			{{end}}
+		</tr>
+		{{range .History}}
+			<tr>
+                <td>{{.StartTime.Format "2006-01-02 15:04:05"}}</td>
+				<td>{{.Status.WebTableString}}</td>
+				{{range .Details}}
+					<td>{{.Status.WebTableString}} </td>
+				{{end}}
+			</tr>
+		{{end}}
+    </table>
+	</details>
+	</div>
     {{end}}
 </body>
 </html>
@@ -70,6 +70,17 @@ func (s Status) String() string {
 		return "failure"
 	default:
 		return "unknown"
+	}
+}
+
+func (s Status) WebTableString() string {
+	switch s {
+	case runSuccess:
+		return "s"
+	case runFailure:
+		return "f"
+	default:
+		return "?"
 	}
 }
 
