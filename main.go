@@ -34,7 +34,14 @@ const webTasksList = `
 		{{if .History}}
     		{{range $i, $h := .History}}
         	<li>
-				Run {{$h.StartTime.Format "2006-01-02 15:04:05"}}: {{$h.Status}}.
+				Run {{$h.StartTime.Format "2006-01-02 15:04:05"}}: {{$h.Status.String}}.
+				<ul>
+                	{{range .Details}}
+                    <li>
+                        Command: {{.Name}}, Status: {{.Status.String}}
+                    </li>
+                    {{end}}
+                </ul>
 			</li>
     		{{end}}
     	{{else}}
@@ -48,15 +55,42 @@ const webTasksList = `
 </html>
 `
 
+type Status int
+
+const (
+	runSuccess Status = iota
+	runFailure
+)
+
+func (s Status) String() string {
+	switch s {
+	case runSuccess:
+		return "success"
+	case runFailure:
+		return "failure"
+	default:
+		return "unknown"
+	}
+}
+
 type Command struct {
 	Name string `json:"name"`
 	Cmd  string `json:"cmd"`
 }
 
+type CommandRun struct {
+	Name      string
+	Cmd       string
+	StartTime time.Time
+	EndTime   time.Time
+	Status    Status
+}
+
 type Run struct {
 	StartTime time.Time
 	EndTime   time.Time
-	Status    string
+	Status    Status
+	Details   []*CommandRun
 }
 
 type Task struct {
@@ -91,7 +125,6 @@ func webServer(tasks *AllTasks) {
 func listTasks(w http.ResponseWriter, tasks *AllTasks) {
 	tmpl := template.New("tmpl")
 	tmpl = template.Must(tmpl.Parse(webTasksList))
-
 	err := tmpl.Execute(w, tasks)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -138,12 +171,12 @@ func processJSONFile(filePath string) (*Task, error) {
 func addTask(path string, task *Task, tasks *AllTasks) {
 	for _, existing := range tasks.Tasks {
 		if existing.Title == task.Title {
-			slog.Info("Task with title '%s' already exists, skipping processing.\n", task.Title)
+			slog.Warn("Task with title '%s' already exists, skipping processing.\n", task.Title)
 			return
 		}
 	}
 	tasks.Tasks = append(tasks.Tasks, task)
-	slog.Info("Added task '%s' from file %s.\n", task.Title, path)
+	slog.Info("Added task", task.Title, "from file", path)
 }
 
 func runTasks(tasks *AllTasks, c *cron.Cron) {
@@ -155,7 +188,7 @@ func runTasks(tasks *AllTasks, c *cron.Cron) {
 }
 
 func runTaskCommands(task *Task) {
-	slog.Info("Running task '%s'\n", task.Title)
+	slog.Info("Running task", task.Title)
 
 	run := &Run{StartTime: time.Now()}
 	defer func() {
@@ -164,15 +197,27 @@ func runTaskCommands(task *Task) {
 	}()
 
 	for _, c := range task.Commands {
+		cmdStartTime := time.Now()
 		output, err := executeCommand(c.Cmd)
+		cmdEndTime := time.Now()
+		cmdStatus := runSuccess
 		if err != nil {
 			slog.Error("Error executing '%s'-'%s': %v\n", task.Title, c.Name, err)
-			run.Status = "failure"
+			cmdStatus = runFailure
+			run.Status = runFailure
 			return
 		}
 		slog.Info("Task", task.Title, "command", c.Name, "output", output)
+
+		run.Details = append(run.Details, &CommandRun{
+			Name:      c.Name,
+			Cmd:       c.Cmd,
+			StartTime: cmdStartTime,
+			EndTime:   cmdEndTime,
+			Status:    cmdStatus,
+		})
 	}
-	run.Status = "success"
+	run.Status = runSuccess
 }
 
 func executeCommand(command string) (string, error) {
