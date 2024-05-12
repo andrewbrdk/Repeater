@@ -31,7 +31,9 @@ const webTasksList = `
     {{range .Tasks}}
 	<div>
 	<details open>
-	<summary><strong>{{.Title}}</strong> {{.Cron}}</summary>
+	<summary><strong>{{.Title}}</strong> {{.Cron}}
+	<button onclick="toggleState('{{.Title}}')">{{if .OnOff}}Turn Off{{else}}Turn On{{end}}</button>
+	</summary>
 	<table>
         <tr>
             <th> Start </th>
@@ -53,6 +55,17 @@ const webTasksList = `
 	</details>
 	</div>
     {{end}}
+	<script>
+        function toggleState(title) {
+            fetch('/toggle-state?title=' + title)
+				.then(response => {
+					location.reload();
+				})
+                .catch(error => {
+                    console.error('Error toggling state:', error);
+                });
+        }
+    </script>
 </body>
 </html>
 `
@@ -135,6 +148,9 @@ func webServer(tasks *AMessOfTasks) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		listTasks(w, tasks)
 	})
+	http.HandleFunc("/toggle-state", func(w http.ResponseWriter, r *http.Request) {
+		toggleStateHandler(w, r, tasks)
+	})
 	slog.Fatal(http.ListenAndServe(port, nil))
 }
 
@@ -146,6 +162,19 @@ func listTasks(w http.ResponseWriter, tasks *AMessOfTasks) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func toggleStateHandler(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
+	title := r.FormValue("title")
+
+	for _, taskSeq := range tasks.Tasks {
+		if taskSeq.Title == title {
+			taskSeq.OnOff = !taskSeq.OnOff
+			slog.Infof("Toggled state of %s to %v", title, taskSeq.OnOff)
+			return
+		}
+	}
+	http.Error(w, "TasksSequence not found", http.StatusNotFound)
 }
 
 func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
