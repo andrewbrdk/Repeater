@@ -115,6 +115,7 @@ type TasksSequence struct {
 	cronID      cron.EntryID
 	cronJobFunc cron.FuncJob
 	History     []*TasksSequenceRun
+	OnOff       bool
 }
 
 type AMessOfTasks struct {
@@ -171,6 +172,7 @@ func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
 func processJSONFile(filePath string) (*TasksSequence, error) {
 	var tseq TasksSequence
 	tseq.File = filePath
+	tseq.OnOff = true
 	jsonFile, err := os.ReadFile(filePath)
 	if err != nil {
 		slog.Error("Error reading JSON file %s: %v\n", filePath, err)
@@ -188,7 +190,7 @@ func processJSONFile(filePath string) (*TasksSequence, error) {
 func addAndScheduleTasks(tseq *TasksSequence, tasks *AMessOfTasks, c *cron.Cron) {
 	for _, existing := range tasks.Tasks {
 		if existing.File == tseq.File && existing.MD5 == tseq.MD5 {
-			slog.Info("TasksSequence", tseq.Title, "already exists, skipping processing.")
+			slog.Info("TasksSequence", tseq.Title, "already exists, skipping.")
 			return
 		}
 	}
@@ -200,6 +202,10 @@ func addAndScheduleTasks(tseq *TasksSequence, tasks *AMessOfTasks, c *cron.Cron)
 
 func runTaskCommands(tseq *TasksSequence) {
 	slog.Info("Running", tseq.Title)
+	if !tseq.OnOff {
+		slog.Info("Skipping execution of", tseq.Title, "because state is off")
+		return
+	}
 
 	run := &TasksSequenceRun{StartTime: time.Now()}
 	defer func() {
