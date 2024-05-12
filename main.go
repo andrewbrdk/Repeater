@@ -34,16 +34,16 @@ const webTasksList = `
         <tr>
             <th> Start </th>
 			<th> {{.Title}} </th>
-			{{range .Commands}}
+			{{range .Tasks}}
             	<th> {{.Name}} </th>
 			{{end}}
 		</tr>
 		{{range .History}}
 			<tr>
                 <td>{{.StartTime.Format "2006-01-02 15:04:05"}}</td>
-				<td>{{.Status.WebTableString}}</td>
+				<td>{{.Status.HTMLTableString}}</td>
 				{{range .Details}}
-					<td>{{.Status.WebTableString}} </td>
+					<td>{{.Status.HTMLTableString}} </td>
 				{{end}}
 			</tr>
 		{{end}}
@@ -55,85 +55,88 @@ const webTasksList = `
 </html>
 `
 
-type Status int
+type RunStatus int
 
 const (
-	runSuccess Status = iota
-	runFailure
+	RunSuccess RunStatus = iota
+	RunFailure
 )
 
-func (s Status) String() string {
+func (s RunStatus) String() string {
 	switch s {
-	case runSuccess:
+	case RunSuccess:
 		return "success"
-	case runFailure:
+	case RunFailure:
 		return "failure"
 	default:
 		return "unknown"
 	}
 }
 
-func (s Status) WebTableString() string {
+func (s RunStatus) HTMLTableString() string {
 	switch s {
-	case runSuccess:
+	case RunSuccess:
 		return "s"
-	case runFailure:
+	case RunFailure:
 		return "f"
 	default:
 		return "?"
 	}
 }
 
-type Command struct {
+type Task struct {
 	Name string `json:"name"`
 	Cmd  string `json:"cmd"`
 }
 
-type CommandRun struct {
+type TaskRun struct {
 	Name      string
 	Cmd       string
 	StartTime time.Time
 	EndTime   time.Time
-	Status    Status
+	Status    RunStatus
 }
 
-type Run struct {
+type TasksSequenceRun struct {
 	StartTime time.Time
 	EndTime   time.Time
-	Status    Status
-	Details   []*CommandRun
+	Status    RunStatus
+	Details   []*TaskRun
 }
 
-type Task struct {
-	Title       string     `json:"title"`
-	Cron        string     `json:"cron"`
-	Commands    []*Command `json:"commands"`
+type TasksSequence struct {
+	Title       string  `json:"title"`
+	Cron        string  `json:"cron"`
+	Tasks       []*Task `json:"tasks"`
 	cronID      cron.EntryID
 	cronJobFunc cron.FuncJob
-	History     []*Run
+	History     []*TasksSequenceRun
 }
 
-type AllTasks struct {
-	Tasks []*Task
+type AMessOfTasks struct {
+	Tasks []*TasksSequence
 }
 
 func main() {
-	var tasks AllTasks
+	var tasks AMessOfTasks
 	c := cron.New(cron.WithSeconds())
 	c.Start()
+	//scanTasksSchedule := "*/10 * * * * *"
+	//dirScanCronJobFunc := func() { scanTasks(&tasks) }
+	//c.AddFunc(scanTasksSchedule, dirScanCronJobFunc)
 	scanTasks(&tasks)
 	runTasks(&tasks, c)
 	webServer(&tasks)
 }
 
-func webServer(tasks *AllTasks) {
+func webServer(tasks *AMessOfTasks) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		listTasks(w, tasks)
 	})
 	slog.Fatal(http.ListenAndServe(port, nil))
 }
 
-func listTasks(w http.ResponseWriter, tasks *AllTasks) {
+func listTasks(w http.ResponseWriter, tasks *AMessOfTasks) {
 	tmpl := template.New("tmpl")
 	tmpl = template.Must(tmpl.Parse(webTasksList))
 	err := tmpl.Execute(w, tasks)
@@ -143,7 +146,7 @@ func listTasks(w http.ResponseWriter, tasks *AllTasks) {
 	}
 }
 
-func scanTasks(tasks *AllTasks) {
+func scanTasks(tasks *AMessOfTasks) {
 	dir := tasksDir
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -164,64 +167,64 @@ func scanTasks(tasks *AllTasks) {
 	}
 }
 
-func processJSONFile(filePath string) (*Task, error) {
-	var task Task
+func processJSONFile(filePath string) (*TasksSequence, error) {
+	var tseq TasksSequence
 	jsonFile, err := os.ReadFile(filePath)
 	if err != nil {
 		slog.Error("Error reading JSON file %s: %v\n", filePath, err)
 		return nil, err
 	}
-	err = json.Unmarshal(jsonFile, &task)
+	err = json.Unmarshal(jsonFile, &tseq)
 	if err != nil {
 		slog.Error("Error parsing JSON file %s: %v\n", filePath, err)
 		return nil, err
 	}
-	return &task, nil
+	return &tseq, nil
 }
 
-func addTask(path string, task *Task, tasks *AllTasks) {
+func addTask(path string, tseq *TasksSequence, tasks *AMessOfTasks) {
 	for _, existing := range tasks.Tasks {
-		if existing.Title == task.Title {
-			slog.Warn("Task with title '%s' already exists, skipping processing.\n", task.Title)
+		if existing.Title == tseq.Title {
+			slog.Warn("Task with title", tseq.Title, "already exists, skipping processing.")
 			return
 		}
 	}
-	tasks.Tasks = append(tasks.Tasks, task)
-	slog.Info("Added task", task.Title, "from file", path)
+	tasks.Tasks = append(tasks.Tasks, tseq)
+	slog.Info("Added task", tseq.Title, "from file", path)
 }
 
-func runTasks(tasks *AllTasks, c *cron.Cron) {
+func runTasks(tasks *AMessOfTasks, c *cron.Cron) {
 	for _, t := range tasks.Tasks {
-		t := t // Capture d variable
+		t := t // Capture variable
 		t.cronJobFunc = func() { runTaskCommands(t) }
 		t.cronID, _ = c.AddFunc(t.Cron, t.cronJobFunc)
 	}
 }
 
-func runTaskCommands(task *Task) {
-	slog.Info("Running task", task.Title)
+func runTaskCommands(tseq *TasksSequence) {
+	slog.Info("Running", tseq.Title)
 
-	run := &Run{StartTime: time.Now()}
+	run := &TasksSequenceRun{StartTime: time.Now()}
 	defer func() {
 		run.EndTime = time.Now()
 		//append to front to simplify web output
-		task.History = append([]*Run{run}, task.History...)
+		tseq.History = append([]*TasksSequenceRun{run}, tseq.History...)
 	}()
 
-	for _, c := range task.Commands {
+	for _, c := range tseq.Tasks {
 		cmdStartTime := time.Now()
 		output, err := executeCommand(c.Cmd)
 		cmdEndTime := time.Now()
-		cmdStatus := runSuccess
+		cmdStatus := RunSuccess
 		if err != nil {
-			slog.Error("Error executing '%s'-'%s': %v\n", task.Title, c.Name, err)
-			cmdStatus = runFailure
-			run.Status = runFailure
+			slog.Error("Error executing '%s'-'%s': %v\n", tseq.Title, c.Name, err)
+			cmdStatus = RunFailure
+			run.Status = RunFailure
 			return
 		}
-		slog.Info("Task", task.Title, "command", c.Name, "output", output)
+		slog.Info("Task", tseq.Title, "command", c.Name, "output", output)
 
-		run.Details = append(run.Details, &CommandRun{
+		run.Details = append(run.Details, &TaskRun{
 			Name:      c.Name,
 			Cmd:       c.Cmd,
 			StartTime: cmdStartTime,
@@ -229,7 +232,7 @@ func runTaskCommands(task *Task) {
 			Status:    cmdStatus,
 		})
 	}
-	run.Status = runSuccess
+	run.Status = RunSuccess
 }
 
 func executeCommand(command string) (string, error) {

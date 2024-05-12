@@ -1,4 +1,4 @@
-module miniflow
+module a_mess_of_tasks
 
 go 1.19
 
