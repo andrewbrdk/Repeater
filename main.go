@@ -3,11 +3,13 @@ package main
 import (
 	"crypto/md5"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gookit/slog"
@@ -34,6 +36,8 @@ const webTasksList = `
 	<summary><strong>{{.Title}}</strong> {{.Cron}}
 	<button onclick="toggleState('{{.Title}}')">{{if .OnOff}}Turn Off{{else}}Turn On{{end}}</button>
 	</summary>
+	{{.HTMLTableString }}
+	<!-->	<!-->
 	<table>
         <tr>
             <th> Start </th>
@@ -52,6 +56,7 @@ const webTasksList = `
 			</tr>
 		{{end}}
     </table>
+	<!-->	<!-->
 	</details>
 	</div>
     {{end}}
@@ -91,9 +96,15 @@ func (s RunStatus) String() string {
 func (s RunStatus) HTMLTableString() string {
 	switch s {
 	case RunSuccess:
-		return "s"
+		//return "s"
+		//return "⬛"
+		//return "&#9632;"
+		return "■"
 	case RunFailure:
-		return "f"
+		//return "f"
+		return "⨯"
+		//return "&#9949;"
+		//return "&#x2A2F;"
 	default:
 		return "?"
 	}
@@ -162,6 +173,38 @@ func listTasks(w http.ResponseWriter, tasks *AMessOfTasks) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func (tseq TasksSequence) HTMLTableString() template.HTML {
+	var sb strings.Builder
+	sb.WriteString("<table>\n")
+	for r := -1; r < len(tseq.Tasks); r++ {
+		sb.WriteString("<tr>\n")
+		for c := -1; c <= len(tseq.History); c++ {
+			if r == -1 && c == -1 {
+				sb.WriteString("<th> </th>")
+			} else if r == -1 && c < len(tseq.History) {
+				sb.WriteString(fmt.Sprintf("<th> %s </th>", tseq.History[c].Status.HTMLTableString()))
+			} else if r == -1 && c == len(tseq.History) {
+				//sb.WriteString("<th>_</th>")
+				//sb.WriteString("<th>⬜</th>")
+				sb.WriteString("<th>&#9633;</th>")
+			} else if c == -1 {
+				sb.WriteString(fmt.Sprintf("<td> %s </td>", tseq.Tasks[r].Name))
+			} else if c < len(tseq.History) {
+				sb.WriteString(fmt.Sprintf("<td> %s </td>", tseq.History[c].Details[r].Status.HTMLTableString()))
+			} else if c == len(tseq.History) {
+				//sb.WriteString("<td>_</td>")
+				//sb.WriteString("<td>⬜</td>")
+				sb.WriteString("<td>&#9633;</td>")
+			} else {
+				slog.Fatal("this is not supposed to happen")
+			}
+		}
+		sb.WriteString("</tr>\n")
+	}
+	sb.WriteString("</table>\n")
+	return template.HTML(sb.String())
 }
 
 func toggleStateHandler(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
