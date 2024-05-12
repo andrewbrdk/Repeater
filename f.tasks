@@ -1,0 +1,11 @@
+{
+    "title": "going to fail",
+    "cron": "*/4 * * * * *",
+    "tasks": [
+        {
+            "name": "tofail",
+            "cmd": "echo oh no && false" 
+        }
+    ]
+}
+

@@ -181,7 +181,7 @@ func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
 	dir := tasksDir
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			slog.Error("Error accessing path %s: %v\n", path, err)
+			slog.Errorf("Error accessing path %s: %v\n", path, err)
 			return err
 		}
 		if !info.IsDir() && filepath.Ext(path) == ".tasks" {
@@ -204,13 +204,13 @@ func processJSONFile(filePath string) (*TasksSequence, error) {
 	tseq.OnOff = true
 	jsonFile, err := os.ReadFile(filePath)
 	if err != nil {
-		slog.Error("Error reading JSON file %s: %v\n", filePath, err)
+		slog.Errorf("Error reading JSON file %s: %v\n", filePath, err)
 		return nil, err
 	}
 	tseq.MD5 = md5.Sum(jsonFile)
 	err = json.Unmarshal(jsonFile, &tseq)
 	if err != nil {
-		slog.Error("Error parsing JSON file %s: %v\n", filePath, err)
+		slog.Errorf("Error parsing JSON file %s: %v\n", filePath, err)
 		return nil, err
 	}
 	return &tseq, nil
@@ -219,22 +219,22 @@ func processJSONFile(filePath string) (*TasksSequence, error) {
 func addAndScheduleTasks(tseq *TasksSequence, tasks *AMessOfTasks, c *cron.Cron) {
 	for _, existing := range tasks.Tasks {
 		if existing.File == tseq.File && existing.MD5 == tseq.MD5 {
-			slog.Info("TasksSequence", tseq.Title, "already exists, skipping.")
+			slog.Infof("File '%s' already loaded, skipping.", tseq.File)
 			return
 		}
 	}
 	tasks.Tasks = append(tasks.Tasks, tseq)
-	slog.Info("Added TasksSequence", tseq.Title, "from file", tseq.File)
+	slog.Infof("Added TasksSequence '%s' from file '%s'", tseq.Title, tseq.File)
 	tseq.cronJobFunc = func() { runTaskCommands(tseq) }
 	tseq.cronID, _ = c.AddFunc(tseq.Cron, tseq.cronJobFunc)
 }
 
 func runTaskCommands(tseq *TasksSequence) {
-	slog.Info("Running", tseq.Title)
 	if !tseq.OnOff {
-		slog.Info("Skipping execution of", tseq.Title, "because state is off")
+		slog.Infof("Skipping '%s'", tseq.Title)
 		return
 	}
+	slog.Infof("Running '%s'", tseq.Title)
 
 	run := &TasksSequenceRun{StartTime: time.Now()}
 	defer func() {
@@ -249,13 +249,11 @@ func runTaskCommands(tseq *TasksSequence) {
 		cmdEndTime := time.Now()
 		cmdStatus := RunSuccess
 		if err != nil {
-			slog.Error("Error executing '%s'-'%s': %v\n", tseq.Title, c.Name, err)
+			slog.Errorf("Error executing '%s'-'%s': %v\n", tseq.Title, c.Name, err)
 			cmdStatus = RunFailure
 			run.Status = RunFailure
-			return
 		}
-		slog.Info("Task", tseq.Title, "command", c.Name, "output", output)
-
+		slog.Infof("Task '%s', command '%s', output: '%s'", tseq.Title, c.Name, output)
 		run.Details = append(run.Details, &TaskRun{
 			Name:      c.Name,
 			Cmd:       c.Cmd,
@@ -263,6 +261,9 @@ func runTaskCommands(tseq *TasksSequence) {
 			EndTime:   cmdEndTime,
 			Status:    cmdStatus,
 		})
+		if err != nil {
+			return //todo: skipToNextTask()
+		}
 	}
 	run.Status = RunSuccess
 }
