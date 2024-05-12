@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"html/template"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 const port = ":8080"
 const tasksDir = "./"
+const scanTasksSchedule = "*/10 * * * * *"
 
 const webTasksList = `
 <!DOCTYPE html>
@@ -105,6 +107,8 @@ type TasksSequenceRun struct {
 }
 
 type TasksSequence struct {
+	File        string
+	MD5         [16]byte
 	Title       string  `json:"title"`
 	Cron        string  `json:"cron"`
 	Tasks       []*Task `json:"tasks"`
@@ -121,11 +125,8 @@ func main() {
 	var tasks AMessOfTasks
 	c := cron.New(cron.WithSeconds())
 	c.Start()
-	//scanTasksSchedule := "*/10 * * * * *"
-	//dirScanCronJobFunc := func() { scanTasks(&tasks) }
-	//c.AddFunc(scanTasksSchedule, dirScanCronJobFunc)
-	scanTasks(&tasks)
-	runTasks(&tasks, c)
+	dirScanCronJobFunc := func() { scanAndScheduleTasks(&tasks, c) }
+	c.AddFunc(scanTasksSchedule, dirScanCronJobFunc)
 	webServer(&tasks)
 }
 
@@ -146,7 +147,7 @@ func listTasks(w http.ResponseWriter, tasks *AMessOfTasks) {
 	}
 }
 
-func scanTasks(tasks *AMessOfTasks) {
+func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
 	dir := tasksDir
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -154,11 +155,11 @@ func scanTasks(tasks *AMessOfTasks) {
 			return err
 		}
 		if !info.IsDir() && filepath.Ext(path) == ".tasks" {
-			task, err := processJSONFile(path)
+			tseq, err := processJSONFile(path)
 			if err != nil {
 				return err
 			}
-			addTask(path, task, tasks)
+			addAndScheduleTasks(tseq, tasks, c)
 		}
 		return nil
 	})
@@ -169,11 +170,13 @@ func scanTasks(tasks *AMessOfTasks) {
 
 func processJSONFile(filePath string) (*TasksSequence, error) {
 	var tseq TasksSequence
+	tseq.File = filePath
 	jsonFile, err := os.ReadFile(filePath)
 	if err != nil {
 		slog.Error("Error reading JSON file %s: %v\n", filePath, err)
 		return nil, err
 	}
+	tseq.MD5 = md5.Sum(jsonFile)
 	err = json.Unmarshal(jsonFile, &tseq)
 	if err != nil {
 		slog.Error("Error parsing JSON file %s: %v\n", filePath, err)
@@ -182,23 +185,17 @@ func processJSONFile(filePath string) (*TasksSequence, error) {
 	return &tseq, nil
 }
 
-func addTask(path string, tseq *TasksSequence, tasks *AMessOfTasks) {
+func addAndScheduleTasks(tseq *TasksSequence, tasks *AMessOfTasks, c *cron.Cron) {
 	for _, existing := range tasks.Tasks {
-		if existing.Title == tseq.Title {
-			slog.Warn("Task with title", tseq.Title, "already exists, skipping processing.")
+		if existing.File == tseq.File && existing.MD5 == tseq.MD5 {
+			slog.Info("TasksSequence", tseq.Title, "already exists, skipping processing.")
 			return
 		}
 	}
 	tasks.Tasks = append(tasks.Tasks, tseq)
-	slog.Info("Added task", tseq.Title, "from file", path)
-}
-
-func runTasks(tasks *AMessOfTasks, c *cron.Cron) {
-	for _, t := range tasks.Tasks {
-		t := t // Capture variable
-		t.cronJobFunc = func() { runTaskCommands(t) }
-		t.cronID, _ = c.AddFunc(t.Cron, t.cronJobFunc)
-	}
+	slog.Info("Added TasksSequence", tseq.Title, "from file", tseq.File)
+	tseq.cronJobFunc = func() { runTaskCommands(tseq) }
+	tseq.cronID, _ = c.AddFunc(tseq.Cron, tseq.cronJobFunc)
 }
 
 func runTaskCommands(tseq *TasksSequence) {
