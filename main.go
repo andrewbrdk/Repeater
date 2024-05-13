@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"html"
 	"html/template"
 	"net/http"
 	"os"
@@ -36,28 +37,7 @@ const webTasksList = `
 	<summary><strong>{{.Title}}</strong> {{.Cron}}
 	<button onclick="toggleState('{{.Title}}')">{{if .OnOff}}Turn Off{{else}}Turn On{{end}}</button>
 	</summary>
-	{{.HTMLTableString }}
-	<!-->	<!-->
-	<table>
-        <tr>
-            <th> Start </th>
-			<th> {{.Title}} </th>
-			{{range .Tasks}}
-			<th> ... </th>
-			<!--> <th> {{.Name}} </th> <!-->
-			{{end}}
-		</tr>
-		{{range .History}}
-			<tr>
-                <td>{{.StartTime.Format "2006-01-02 15:04:05"}}</td>
-				<td>{{.Status.HTMLStatusString}}</td>
-				{{range .Details}}
-					<td>{{.Status.HTMLStatusString}} </td>
-				{{end}}
-			</tr>
-		{{end}}
-    </table>
-	<!-->	<!-->
+	{{.HTMLHistoryTable}}	
 	</details>
 	</div>
     {{end}}
@@ -94,18 +74,14 @@ func (s RunStatus) String() string {
 	}
 }
 
-func (s RunStatus) HTMLStatusString() template.HTML {
+func (s RunStatus) HTMLStatus() template.HTML {
 	switch s {
 	case RunSuccess:
-		//return "s"
-		//return "⬛"
 		//return "&#9632;"
 		return "■"
 	case RunFailure:
-		//return "f"
+		//return "&Cross;"
 		return "⨯"
-		//return "&#9949;"
-		//return "&#x2A2F;"
 	default:
 		return "?"
 	}
@@ -176,7 +152,7 @@ func listTasks(w http.ResponseWriter, tasks *AMessOfTasks) {
 	}
 }
 
-func (tseq TasksSequence) HTMLTableString() template.HTML {
+func (tseq TasksSequence) HTMLHistoryTable() template.HTML {
 	var sb strings.Builder
 	sb.WriteString("<table>\n")
 	for r := -1; r < len(tseq.Tasks); r++ {
@@ -185,17 +161,14 @@ func (tseq TasksSequence) HTMLTableString() template.HTML {
 			if r == -1 && c == -1 {
 				sb.WriteString("<th> </th>")
 			} else if r == -1 && c < len(tseq.History) {
-				sb.WriteString(fmt.Sprintf("<th> %s </th>", tseq.History[c].Status.HTMLStatusString()))
+				sb.WriteString(fmt.Sprintf("<th> %s </th>", tseq.History[c].Status.HTMLStatus()))
 			} else if r == -1 && c == len(tseq.History) {
-				//todo: newest is leftmost, reorder history
 				sb.WriteString("<th>&#9633;</th>")
 			} else if c == -1 {
-				//todo: escape task names
-				sb.WriteString(fmt.Sprintf("<td> %s </td>", tseq.Tasks[r].Name))
+				sb.WriteString(fmt.Sprintf("<td> %s </td>", html.EscapeString(tseq.Tasks[r].Name)))
 			} else if c < len(tseq.History) {
-				sb.WriteString(fmt.Sprintf("<td> %s </td>", tseq.History[c].Details[r].Status.HTMLStatusString()))
+				sb.WriteString(fmt.Sprintf("<td> %s </td>", tseq.History[c].Details[r].Status.HTMLStatus()))
 			} else if c == len(tseq.History) {
-				//todo: newest is leftmost, reorder history
 				sb.WriteString("<td>&#9633;</td>")
 			} else {
 				slog.Error("this is not supposed to happen")
@@ -282,8 +255,7 @@ func runTaskCommands(tseq *TasksSequence) {
 	run := &TasksSequenceRun{StartTime: time.Now()}
 	defer func() {
 		run.EndTime = time.Now()
-		//append to front to simplify web output
-		tseq.History = append([]*TasksSequenceRun{run}, tseq.History...)
+		tseq.History = append(tseq.History, run)
 	}()
 
 	for _, c := range tseq.Tasks {
