@@ -1,6 +1,6 @@
 {
     "title": "copy_tables",
-    "cron": "*/4 * * * * *",
+    "cron": "*/1 * * * * *",
     "tasks": [
         {
             "name": "customer_transactions",

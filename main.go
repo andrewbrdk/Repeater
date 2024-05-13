@@ -37,7 +37,9 @@ const webTasksList = `
 	<summary><strong>{{.Title}}</strong> {{.Cron}}
 	<button onclick="toggleState('{{.Title}}')">{{if .OnOff}}Turn Off{{else}}Turn On{{end}}</button>
 	</summary>
-	{{.HTMLHistoryTable}}	
+	<div style="overflow-x:auto;">
+	{{.HTMLHistoryTable}}
+	</div>
 	</details>
 	</div>
     {{end}}
