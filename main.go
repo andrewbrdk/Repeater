@@ -43,15 +43,16 @@ const webTasksList = `
             <th> Start </th>
 			<th> {{.Title}} </th>
 			{{range .Tasks}}
-            	<th> {{.Name}} </th>
+			<th> ... </th>
+			<!--> <th> {{.Name}} </th> <!-->
 			{{end}}
 		</tr>
 		{{range .History}}
 			<tr>
                 <td>{{.StartTime.Format "2006-01-02 15:04:05"}}</td>
-				<td>{{.Status.HTMLTableString}}</td>
+				<td>{{.Status.HTMLStatusString}}</td>
 				{{range .Details}}
-					<td>{{.Status.HTMLTableString}} </td>
+					<td>{{.Status.HTMLStatusString}} </td>
 				{{end}}
 			</tr>
 		{{end}}
@@ -93,7 +94,7 @@ func (s RunStatus) String() string {
 	}
 }
 
-func (s RunStatus) HTMLTableString() string {
+func (s RunStatus) HTMLStatusString() template.HTML {
 	switch s {
 	case RunSuccess:
 		//return "s"
@@ -184,21 +185,20 @@ func (tseq TasksSequence) HTMLTableString() template.HTML {
 			if r == -1 && c == -1 {
 				sb.WriteString("<th> </th>")
 			} else if r == -1 && c < len(tseq.History) {
-				sb.WriteString(fmt.Sprintf("<th> %s </th>", tseq.History[c].Status.HTMLTableString()))
+				sb.WriteString(fmt.Sprintf("<th> %s </th>", tseq.History[c].Status.HTMLStatusString()))
 			} else if r == -1 && c == len(tseq.History) {
-				//sb.WriteString("<th>_</th>")
-				//sb.WriteString("<th>⬜</th>")
+				//todo: newest is leftmost, reorder history
 				sb.WriteString("<th>&#9633;</th>")
 			} else if c == -1 {
+				//todo: escape task names
 				sb.WriteString(fmt.Sprintf("<td> %s </td>", tseq.Tasks[r].Name))
 			} else if c < len(tseq.History) {
-				sb.WriteString(fmt.Sprintf("<td> %s </td>", tseq.History[c].Details[r].Status.HTMLTableString()))
+				sb.WriteString(fmt.Sprintf("<td> %s </td>", tseq.History[c].Details[r].Status.HTMLStatusString()))
 			} else if c == len(tseq.History) {
-				//sb.WriteString("<td>_</td>")
-				//sb.WriteString("<td>⬜</td>")
+				//todo: newest is leftmost, reorder history
 				sb.WriteString("<td>&#9633;</td>")
 			} else {
-				slog.Fatal("this is not supposed to happen")
+				slog.Error("this is not supposed to happen")
 			}
 		}
 		sb.WriteString("</tr>\n")
@@ -296,7 +296,7 @@ func runTaskCommands(tseq *TasksSequence) {
 			cmdStatus = RunFailure
 			run.Status = RunFailure
 		}
-		slog.Infof("Task '%s', command '%s', output: '%s'", tseq.Title, c.Name, output)
+		slog.Infof("Task '%s', command '%s', output: '%s'\n", tseq.Title, c.Name, output)
 		run.Details = append(run.Details, &TaskRun{
 			Name:      c.Name,
 			Cmd:       c.Cmd,
@@ -305,7 +305,9 @@ func runTaskCommands(tseq *TasksSequence) {
 			Status:    cmdStatus,
 		})
 		if err != nil {
-			return //todo: skipToNextTask()
+			//todo: skipToNextTask()
+			slog.Errorf("Should be skipping to next task")
+			//return
 		}
 	}
 	run.Status = RunSuccess
