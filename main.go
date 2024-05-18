@@ -36,6 +36,7 @@ const webTasksList = `
 	<details open>
 	<summary><strong>{{.Title}}</strong> {{.Cron}}
 	<button onclick="toggleState('{{.Title}}')">{{if .OnOff}}Turn Off{{else}}Turn On{{end}}</button>
+	<button onclick="restartTask('{{.Title}}')">Restart</button>
 	</summary>
 	<div style="overflow-x:auto;">
 	{{.HTMLHistoryTable}}
@@ -51,6 +52,15 @@ const webTasksList = `
 				})
                 .catch(error => {
                     console.error('Error toggling state:', error);
+                });
+        }
+        function restartTask(title) {
+            fetch('/restart-task?title=' + title)
+				.then(response => {
+					location.reload();
+				})
+                .catch(error => {
+                    console.error('Error restarting task:', error);
                 });
         }
     </script>
@@ -141,6 +151,9 @@ func webServer(tasks *AMessOfTasks) {
 	http.HandleFunc("/toggle-state", func(w http.ResponseWriter, r *http.Request) {
 		toggleStateHandler(w, r, tasks)
 	})
+	http.HandleFunc("/restart-task", func(w http.ResponseWriter, r *http.Request) {
+		restartTaskHandler(w, r, tasks)
+	})
 	slog.Fatal(http.ListenAndServe(port, nil))
 }
 
@@ -193,6 +206,30 @@ func toggleStateHandler(w http.ResponseWriter, r *http.Request, tasks *AMessOfTa
 		}
 	}
 	http.Error(w, "TasksSequence not found", http.StatusNotFound)
+}
+
+func restartTaskHandler(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
+	title := r.FormValue("title")
+
+	for _, taskSeq := range tasks.Tasks {
+		if taskSeq.Title == title {
+			restartTask(taskSeq)
+			slog.Infof("Restarted task %s", title)
+			return
+		}
+	}
+	http.Error(w, "TasksSequence not found", http.StatusNotFound)
+}
+
+func restartTask(tseq *TasksSequence) {
+	// Remove the existing cron job
+	tseq.cronID, _ = cron.New(cron.WithSeconds()).AddFunc(tseq.Cron, tseq.cronJobFunc)
+
+	// Reset the history
+	tseq.History = nil
+
+	// Immediately run the task
+	go runTaskCommands(tseq)
 }
 
 func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
