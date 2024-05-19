@@ -5,6 +5,7 @@ go 1.19
 require github.com/robfig/cron/v3 v3.0.1
 
 require (
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/gookit/goutil v0.6.15 // indirect
 	github.com/gookit/gsr v0.1.0 // indirect
