@@ -166,12 +166,20 @@ func webServer(tasks *AMessOfTasks) {
 
 func listTasks(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
 	uuid := r.URL.Query().Get("uuid")
+
 	for _, taskSeq := range tasks.Tasks {
-		if uuid != "" {
-			taskSeq.ShowRestartButton = true
-			taskSeq.RestartUUID = uuid
-		} else {
-			taskSeq.ShowRestartButton = false
+		taskSeq.ShowRestartButton = false
+		for _, seqRun := range taskSeq.History {
+			if seqRun.ID == uuid {
+				taskSeq.ShowRestartButton = true
+				taskSeq.RestartUUID = uuid
+			}
+			for _, taskRun := range seqRun.Details {
+				if taskRun.ID == uuid {
+					taskSeq.ShowRestartButton = true
+					taskSeq.RestartUUID = uuid
+				}
+			}
 		}
 	}
 
