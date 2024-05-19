@@ -41,6 +41,9 @@ const webTasksList = `
     <div style="overflow-x:auto;">
     {{.HTMLHistoryTable}}
     </div>
+    {{if .ShowRestartButton}}
+    <button onclick="restartTask('{{.RestartUUID}}')">Restart</button>
+    {{end}}
     </details>
     </div>
     {{end}}
@@ -54,17 +57,8 @@ const webTasksList = `
                     console.error('Error toggling state:', error);
                 });
         }
-        function restartTaskSequence(runID) {
-            fetch('/restart-task-sequence?runID=' + runID)
-                .then(response => {
-                    location.reload();
-                })
-                .catch(error => {
-                    console.error('Error restarting task sequence:', error);
-                });
-        }
-        function restartTask(runID, taskID) {
-            fetch('/restart-task?runID=' + runID + '&taskID=' + taskID)
+        function restartTask(uuid) {
+            fetch('/restart-task?uuid=' + uuid)
                 .then(response => {
                     location.reload();
                 })
@@ -131,15 +125,17 @@ type TasksSequenceRun struct {
 }
 
 type TasksSequence struct {
-	File        string
-	MD5         [16]byte
-	Title       string  `json:"title"`
-	Cron        string  `json:"cron"`
-	Tasks       []*Task `json:"tasks"`
-	cronID      cron.EntryID
-	cronJobFunc cron.FuncJob
-	History     []*TasksSequenceRun
-	OnOff       bool
+	File              string
+	MD5               [16]byte
+	Title             string  `json:"title"`
+	Cron              string  `json:"cron"`
+	Tasks             []*Task `json:"tasks"`
+	cronID            cron.EntryID
+	cronJobFunc       cron.FuncJob
+	History           []*TasksSequenceRun
+	OnOff             bool
+	ShowRestartButton bool
+	RestartUUID       string
 }
 
 type AMessOfTasks struct {
@@ -157,21 +153,28 @@ func main() {
 
 func webServer(tasks *AMessOfTasks) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		listTasks(w, tasks)
+		listTasks(w, r, tasks)
 	})
 	http.HandleFunc("/toggle-state", func(w http.ResponseWriter, r *http.Request) {
 		toggleStateHandler(w, r, tasks)
 	})
-	http.HandleFunc("/restart-task-sequence", func(w http.ResponseWriter, r *http.Request) {
-		restartTaskSequenceHandler(w, r, tasks)
-	})
 	http.HandleFunc("/restart-task", func(w http.ResponseWriter, r *http.Request) {
-		restartSpecificTaskHandler(w, r, tasks)
+		restartTaskHandler(w, r, tasks)
 	})
 	slog.Fatal(http.ListenAndServe(port, nil))
 }
 
-func listTasks(w http.ResponseWriter, tasks *AMessOfTasks) {
+func listTasks(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
+	uuid := r.URL.Query().Get("uuid")
+	for _, taskSeq := range tasks.Tasks {
+		if uuid != "" {
+			taskSeq.ShowRestartButton = true
+			taskSeq.RestartUUID = uuid
+		} else {
+			taskSeq.ShowRestartButton = false
+		}
+	}
+
 	tmpl := template.New("tmpl")
 	tmpl = template.Must(tmpl.Parse(webTasksList))
 	err := tmpl.Execute(w, tasks)
@@ -329,72 +332,93 @@ func executeCommand(command string) (string, error) {
 	return string(output), nil
 }
 
-func restartTaskSequenceHandler(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
-	runID := r.FormValue("runID")
+func restartTaskHandler(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
+	uuid := r.URL.Query().Get("uuid")
+	if uuid == "" {
+		http.Error(w, "UUID parameter is required", http.StatusBadRequest)
+		return
+	}
+
 	for _, taskSeq := range tasks.Tasks {
-		for _, run := range taskSeq.History {
-			if run.ID == runID {
-				for _, taskRun := range run.Details {
-					restartSpecificTask(taskSeq, taskRun)
+		for _, seqRun := range taskSeq.History {
+			if seqRun.ID == uuid {
+				restartTaskSequenceRun(taskSeq, seqRun)
+				return
+			}
+			for _, taskRun := range seqRun.Details {
+				if taskRun.ID == uuid {
+					restartSpecificTaskRun(taskSeq, taskRun)
+					return
 				}
-				slog.Infof("Restarted task sequence run %s", runID)
+			}
+		}
+	}
+	http.Error(w, "TaskSequenceRun or TaskRun not found", http.StatusNotFound)
+}
+
+func restartTaskSequenceRun(tseq *TasksSequence, seqRun *TasksSequenceRun) {
+	slog.Infof("Restarting TaskSequenceRun %s", seqRun.ID)
+
+	newSeqRun := &TasksSequenceRun{ID: uuid.New().String(), StartTime: time.Now()}
+	defer func() {
+		newSeqRun.EndTime = time.Now()
+		tseq.History = append(tseq.History, newSeqRun)
+	}()
+
+	for _, taskRun := range seqRun.Details {
+		newTaskRun := &TaskRun{
+			ID:        uuid.New().String(),
+			Name:      taskRun.Name,
+			Cmd:       taskRun.Cmd,
+			StartTime: time.Now(),
+		}
+
+		output, err := executeCommand(taskRun.Cmd)
+		newTaskRun.EndTime = time.Now()
+		if err != nil {
+			slog.Errorf("Error executing '%s'-'%s': %v\n", tseq.Title, taskRun.Name, err)
+			newTaskRun.Status = RunFailure
+			newSeqRun.Status = RunFailure
+		} else {
+			newTaskRun.Status = RunSuccess
+		}
+
+		slog.Infof("Task '%s', command '%s', output: '%s'\n", tseq.Title, taskRun.Name, output)
+		newSeqRun.Details = append(newSeqRun.Details, newTaskRun)
+	}
+
+	if newSeqRun.Status != RunFailure {
+		newSeqRun.Status = RunSuccess
+	}
+}
+
+func restartSpecificTaskRun(tseq *TasksSequence, taskRun *TaskRun) {
+	slog.Infof("Restarting TaskRun %s", taskRun.ID)
+
+	newTaskRun := &TaskRun{
+		ID:        uuid.New().String(),
+		Name:      taskRun.Name,
+		Cmd:       taskRun.Cmd,
+		StartTime: time.Now(),
+	}
+
+	output, err := executeCommand(taskRun.Cmd)
+	newTaskRun.EndTime = time.Now()
+	if err != nil {
+		slog.Errorf("Error executing '%s'-'%s': %v\n", tseq.Title, taskRun.Name, err)
+		newTaskRun.Status = RunFailure
+	} else {
+		newTaskRun.Status = RunSuccess
+	}
+
+	slog.Infof("Task '%s', command '%s', output: '%s'\n", tseq.Title, taskRun.Name, output)
+
+	for _, seqRun := range tseq.History {
+		for i, existingTaskRun := range seqRun.Details {
+			if existingTaskRun.ID == taskRun.ID {
+				seqRun.Details[i] = newTaskRun
 				return
 			}
 		}
-	}
-	http.Error(w, "TasksSequenceRun not found", http.StatusNotFound)
-}
-
-func restartSpecificTaskHandler(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
-	runID := r.FormValue("runID")
-	taskID := r.FormValue("taskID")
-
-	for _, taskSeq := range tasks.Tasks {
-		for _, run := range taskSeq.History {
-			if run.ID == runID {
-				for _, taskRun := range run.Details {
-					if taskRun.ID == taskID {
-						restartSpecificTask(taskSeq, taskRun)
-						slog.Infof("Restarted task run %s in sequence %s", taskID, runID)
-						return
-					}
-				}
-			}
-		}
-	}
-	http.Error(w, "TaskRun not found", http.StatusNotFound)
-}
-
-func restartSpecificTask(tseq *TasksSequence, taskRun *TaskRun) {
-	task := taskRun
-	cmdStartTime := time.Now()
-	output, err := executeCommand(task.Cmd)
-	cmdEndTime := time.Now()
-	cmdStatus := RunSuccess
-	if err != nil {
-		slog.Errorf("Error executing '%s'-'%s': %v\n", tseq.Title, task.Name, err)
-		cmdStatus = RunFailure
-	}
-	slog.Infof("Task '%s', command '%s', output: '%s'\n", tseq.Title, task.Name, output)
-
-	taskRun = &TaskRun{
-		ID:        uuid.New().String(),
-		Name:      task.Name,
-		Cmd:       task.Cmd,
-		StartTime: cmdStartTime,
-		EndTime:   cmdEndTime,
-		Status:    cmdStatus,
-	}
-
-	if len(tseq.History) == 0 {
-		tseq.History = append(tseq.History, &TasksSequenceRun{
-			ID: uuid.New().String(),
-		})
-	}
-	latestRun := tseq.History[len(tseq.History)-1]
-	latestRun.Details = append(latestRun.Details, taskRun)
-
-	if cmdStatus == RunFailure {
-		latestRun.Status = RunFailure
 	}
 }
