@@ -35,9 +35,13 @@ const webTasksList = `
     {{range .Tasks}}
     <div>
     <details open>
-    <summary><strong>{{.Title}}</strong> {{.Cron}}
-    <button onclick="toggleState('{{.Title}}')">{{if .OnOff}}Turn Off{{else}}Turn On{{end}}</button>
-    </summary>
+    <summary style="text-align:left;">
+		<strong>{{.Title}}</strong>
+		<span style="float:right;">
+			{{.Cron}} 
+    		<button onclick="toggleState('{{.Title}}')">{{if .OnOff}}Turn Off{{else}}Turn On{{end}}</button>
+		</span>
+	</summary>
     <div style="overflow-x:auto;">
     {{.HTMLHistoryTable}}
     </div>
