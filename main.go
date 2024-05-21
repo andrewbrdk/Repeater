@@ -419,20 +419,13 @@ func restartTaskSequenceRun(tseq *TasksSequence, seqRun *TasksSequenceRun) {
 func restartSpecificTaskRun(tseq *TasksSequence, taskRun *TaskRun) {
 	slog.Infof("Restarting TaskRun %s", taskRun.ID)
 
-	newTaskRun := &TaskRun{
-		ID:        uuid.New().String(),
-		Name:      taskRun.Name,
-		Cmd:       taskRun.Cmd,
-		StartTime: time.Now(),
-	}
-
+	cmdStartTime := time.Now()
 	output, err := executeCommand(taskRun.Cmd)
-	newTaskRun.EndTime = time.Now()
+	EndTime := time.Now()
+	Status := RunSuccess
 	if err != nil {
 		slog.Errorf("Error executing '%s'-'%s': %v\n", tseq.Title, taskRun.Name, err)
-		newTaskRun.Status = RunFailure
-	} else {
-		newTaskRun.Status = RunSuccess
+		Status = RunFailure
 	}
 
 	slog.Infof("Task '%s', command '%s', output: '%s'\n", tseq.Title, taskRun.Name, output)
@@ -440,7 +433,9 @@ func restartSpecificTaskRun(tseq *TasksSequence, taskRun *TaskRun) {
 	for _, seqRun := range tseq.History {
 		for i, existingTaskRun := range seqRun.Details {
 			if existingTaskRun.ID == taskRun.ID {
-				seqRun.Details[i] = newTaskRun
+				seqRun.Details[i].StartTime = cmdStartTime
+				seqRun.Details[i].EndTime = EndTime
+				seqRun.Details[i].Status = Status
 				return
 			}
 		}
