@@ -78,6 +78,7 @@ type RunStatus int
 const (
 	RunSuccess RunStatus = iota
 	RunFailure
+	NoRun
 )
 
 func (s RunStatus) String() string {
@@ -86,6 +87,8 @@ func (s RunStatus) String() string {
 		return "success"
 	case RunFailure:
 		return "failure"
+	case NoRun:
+		return "no run"
 	default:
 		return "unknown"
 	}
@@ -99,6 +102,9 @@ func (s RunStatus) HTMLStatus() template.HTML {
 	case RunFailure:
 		//return "&Cross;"
 		return "⨯"
+	case NoRun:
+		//return &#9633;
+		return "□"
 	default:
 		return "?"
 	}
@@ -304,8 +310,17 @@ func runTaskCommands(tseq *TasksSequence) {
 		run.EndTime = time.Now()
 		tseq.History = append(tseq.History, run)
 	}()
-
 	for _, c := range tseq.Tasks {
+		run.Details = append(run.Details, &TaskRun{
+			ID:     uuid.New().String(),
+			Name:   c.Name,
+			Cmd:    c.Cmd,
+			Status: NoRun,
+		})
+	}
+
+	var taskFail bool
+	for i, c := range tseq.Tasks {
 		cmdStartTime := time.Now()
 		output, err := executeCommand(c.Cmd)
 		cmdEndTime := time.Now()
@@ -316,21 +331,20 @@ func runTaskCommands(tseq *TasksSequence) {
 			run.Status = RunFailure
 		}
 		slog.Infof("Task '%s', command '%s', output: '%s'\n", tseq.Title, c.Name, output)
-		run.Details = append(run.Details, &TaskRun{
-			ID:        uuid.New().String(),
-			Name:      c.Name,
-			Cmd:       c.Cmd,
-			StartTime: cmdStartTime,
-			EndTime:   cmdEndTime,
-			Status:    cmdStatus,
-		})
+		run.Details[i].StartTime = cmdStartTime
+		run.Details[i].EndTime = cmdEndTime
+		run.Details[i].Status = cmdStatus
 		if err != nil {
-			//todo: skipToNextTask()
+			taskFail = true
 			slog.Errorf("Should be skipping to next task")
-			//return
+			break
 		}
 	}
 	run.Status = RunSuccess
+	if taskFail {
+		run.Status = RunFailure
+	}
+
 }
 
 func executeCommand(command string) (string, error) {
