@@ -177,7 +177,6 @@ func runTaskCommands(tseq *TasksSequence) {
 		err := cmdRun(tr, tseq.Title)
 		if err != nil {
 			taskFail = true
-			slog.Errorf("Should be skipping to next task")
 			break
 		}
 	}
@@ -262,30 +261,10 @@ func restartTaskSequenceRun(tseq *TasksSequence, seqRun *TasksSequenceRun) {
 	}
 }
 
-func restartSpecificTaskRun(tseq *TasksSequence, taskRun *TaskRun) {
+func restartTaskRun(tseq *TasksSequence, taskRun *TaskRun) {
 	slog.Infof("Restarting TaskRun %s", taskRun.ID)
-
-	cmdStartTime := time.Now()
-	output, err := executeCommand(taskRun.Cmd)
-	EndTime := time.Now()
-	Status := RunSuccess
-	if err != nil {
-		slog.Errorf("Error executing '%s'-'%s': %v\n", tseq.Title, taskRun.Name, err)
-		Status = RunFailure
-	}
-
-	slog.Infof("Task '%s', command '%s', output: '%s'\n", tseq.Title, taskRun.Name, output)
-
-	for _, seqRun := range tseq.History {
-		for i, existingTaskRun := range seqRun.Details {
-			if existingTaskRun.ID == taskRun.ID {
-				seqRun.Details[i].StartTime = cmdStartTime
-				seqRun.Details[i].EndTime = EndTime
-				seqRun.Details[i].Status = Status
-				return
-			}
-		}
-	}
+	cmdRun(taskRun, tseq.Title)
+	//todo: add error check
 }
 
 func sequenceOnOff(taskidx int, tasks *AMessOfTasks) error {
@@ -474,7 +453,7 @@ func httpRestart(w http.ResponseWriter, r *http.Request, template_data *HTMLTemp
 			}
 			for _, taskRun := range seqRun.Details {
 				if taskRun.ID == uuid {
-					restartSpecificTaskRun(taskSeq, taskRun)
+					restartTaskRun(taskSeq, taskRun)
 					return
 				}
 			}
