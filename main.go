@@ -29,6 +29,7 @@ type RunStatus int
 const (
 	RunSuccess RunStatus = iota
 	RunFailure
+	Running
 	NoRun
 )
 
@@ -358,6 +359,9 @@ func (s RunStatus) HTMLStatus() template.HTML {
 	case RunFailure:
 		//return "&Cross;"
 		return "⨯"
+	case Running:
+		//return "&#9704"
+		return "◨"
 	case NoRun:
 		//return &#9633;
 		return "□"
@@ -443,7 +447,6 @@ func httpOnOff(w http.ResponseWriter, r *http.Request, template_data *HTMLTempla
 	taskidx, err := strconv.Atoi(taskidx_str)
 	if err != nil {
 		slog.Errorf("error converting taskidx string %s to int", taskidx_str)
-		//todo: ?
 		http.Error(w, "TasksSequence not found", http.StatusNotFound)
 		return
 	}
