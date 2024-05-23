@@ -31,22 +31,6 @@ const (
 	NoRun
 )
 
-func (s RunStatus) HTMLStatus() template.HTML {
-	switch s {
-	case RunSuccess:
-		//return "&#9632;"
-		return "■"
-	case RunFailure:
-		//return "&Cross;"
-		return "⨯"
-	case NoRun:
-		//return &#9633;
-		return "□"
-	default:
-		return "?"
-	}
-}
-
 type Task struct {
 	Name string `json:"name"`
 	Cmd  string `json:"cmd"`
@@ -392,12 +376,12 @@ func httpOnOff(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
 	taskidx_str := r.URL.Query().Get("taskidx")
 	taskidx, err := strconv.Atoi(taskidx_str)
 	if err != nil {
-		slog.Warnf("error converting taskidx string %s to int", taskidx_str)
+		slog.Errorf("error converting taskidx string %s to int", taskidx_str)
 		//todo: ?
 		http.Error(w, "TasksSequence not found", http.StatusNotFound)
 		return
 	} else if taskidx >= len(tasks.Tasks) || taskidx < 0 {
-		slog.Warn("incorrect task index")
+		slog.Errorf("incorrect task index %v", taskidx)
 		//todo: ?
 		http.Error(w, "TasksSequence not found", http.StatusNotFound)
 		return
@@ -429,6 +413,22 @@ func httpRestart(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
 		}
 	}
 	http.Error(w, "TaskSequenceRun or TaskRun not found", http.StatusNotFound)
+}
+
+func (s RunStatus) HTMLStatus() template.HTML {
+	switch s {
+	case RunSuccess:
+		//return "&#9632;"
+		return "■"
+	case RunFailure:
+		//return "&Cross;"
+		return "⨯"
+	case NoRun:
+		//return &#9633;
+		return "□"
+	default:
+		return "?"
+	}
 }
 
 func (tseq TasksSequence) HTMLHistoryTable() template.HTML {
