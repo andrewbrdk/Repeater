@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,57 +22,6 @@ import (
 const port = ":8080"
 const tasksDir = "./"
 const scanTasksSchedule = "*/10 * * * * *"
-
-const webTasksList = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tasks</title>
-</head>
-<body>
-    <h1>Tasks</h1>
-    {{range .Tasks}}
-    <div>
-    <details open>
-	<summary>
-		<strong>{{.Title}}</strong>
-		<span>{{.Cron}}</span>
-    	<button onclick="toggleState('{{.Title}}')">{{if .OnOff}}Turn Off{{else}}Turn On{{end}}</button>
-	</summary>
-    <div style="overflow-x:auto;">
-    {{.HTMLHistoryTable}}
-    </div>
-    {{if .ShowRestartButton}}
-    <button onclick="restartTask('{{.RestartUUID}}')">Restart</button>
-    {{end}}
-    </details>
-    </div>
-    {{end}}
-    <script>
-        function toggleState(title) {
-            fetch('/toggle?title=' + title)
-                .then(response => {
-                    location.reload();
-                })
-                .catch(error => {
-                    console.error('Error toggling state:', error);
-                });
-        }
-        function restartTask(uuid) {
-            fetch('/restart?uuid=' + uuid)
-                .then(response => {
-                    location.reload();
-                })
-                .catch(error => {
-                    console.error('Error restarting task:', error);
-                });
-        }
-    </script>
-</body>
-</html>
-`
 
 type RunStatus int
 
@@ -170,7 +120,6 @@ func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
 	}
 	for f := range files {
 		slog.Infof("loading %s", f)
-		//loadAndSchedule(f, c)
 		tseq, _ := processTasksFile(f)
 		//if err != nil { }
 		addAndScheduleTasks(tseq, tasks, c)
@@ -347,12 +296,63 @@ func restartSpecificTaskRun(tseq *TasksSequence, taskRun *TaskRun) {
 	}
 }
 
+const webTasksList = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tasks</title>
+</head>
+<body>
+    <h1>Tasks</h1>
+    {{range $i, $t := .Tasks}}
+    <div>
+    <details open>
+	<summary>
+		<strong>{{.Title}}</strong>
+		<span>{{.Cron}}</span>
+    	<button onclick="onoff( {{$i}} )">{{if .OnOff}}Turn Off{{else}}Turn On{{end}}</button>
+	</summary>
+    <div style="overflow-x:auto;">
+    {{.HTMLHistoryTable}}
+    </div>
+    {{if .ShowRestartButton}}
+    <button onclick="restartTask('{{.RestartUUID}}')">Restart</button>
+    {{end}}
+    </details>
+    </div>
+    {{end}}
+    <script>
+        function onoff(taskidx) {
+            fetch('/onoff?taskidx=' + taskidx)
+                .then(response => {
+                    location.reload();
+                })
+                .catch(error => {
+                    console.error('Error toggling state:', error);
+                });
+        }
+        function restartTask(uuid) {
+            fetch('/restart?uuid=' + uuid)
+                .then(response => {
+                    location.reload();
+                })
+                .catch(error => {
+                    console.error('Error restarting task:', error);
+                });
+        }
+    </script>
+</body>
+</html>
+`
+
 func httpServer(tasks *AMessOfTasks) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		httpListTasks(w, r, tasks)
 	})
-	http.HandleFunc("/toggle", func(w http.ResponseWriter, r *http.Request) {
-		httpToggle(w, r, tasks)
+	http.HandleFunc("/onoff", func(w http.ResponseWriter, r *http.Request) {
+		httpOnOff(w, r, tasks)
 	})
 	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
 		httpRestart(w, r, tasks)
@@ -388,17 +388,23 @@ func httpListTasks(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) 
 	}
 }
 
-func httpToggle(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
-	title := r.FormValue("title")
-
-	for _, taskSeq := range tasks.Tasks {
-		if taskSeq.Title == title {
-			taskSeq.OnOff = !taskSeq.OnOff
-			slog.Infof("Toggled state of %s to %v", title, taskSeq.OnOff)
-			return
-		}
+func httpOnOff(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
+	taskidx_str := r.URL.Query().Get("taskidx")
+	taskidx, err := strconv.Atoi(taskidx_str)
+	if err != nil {
+		slog.Warnf("error converting taskidx string %s to int", taskidx_str)
+		//todo: ?
+		http.Error(w, "TasksSequence not found", http.StatusNotFound)
+		return
+	} else if taskidx >= len(tasks.Tasks) || taskidx < 0 {
+		slog.Warn("incorrect task index")
+		//todo: ?
+		http.Error(w, "TasksSequence not found", http.StatusNotFound)
+		return
 	}
-	http.Error(w, "TasksSequence not found", http.StatusNotFound)
+	ts := tasks.Tasks[taskidx]
+	ts.OnOff = !ts.OnOff
+	slog.Infof("Toggled state of %s to %v", ts.Title, ts.OnOff)
 }
 
 func httpRestart(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
