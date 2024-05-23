@@ -244,24 +244,56 @@ func toggleStateHandler(w http.ResponseWriter, r *http.Request, tasks *AMessOfTa
 }
 
 func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
+	files := make(map[string][16]byte)
+	err := scanFiles(files)
+	if err != nil {
+		slog.Errorf("Errors while reading files")
+	}
+	for _, tseq := range tasks.Tasks {
+		md5, haskey := files[tseq.File]
+		if !haskey {
+			slog.Infof("deleting %s", tseq.Title)
+			//err := delete(tseq)
+		} else if md5 != tseq.MD5 {
+			slog.Infof("file %s has changed, reloading", tseq.File)
+			//err := reload(tseq.File)
+			delete(files, tseq.File)
+		} else if md5 == tseq.MD5 {
+			slog.Infof("file %s has not changed, nothin to do", tseq.File)
+			delete(files, tseq.File)
+		} else {
+			panic("This is not supposed to happen")
+		}
+	}
+	for f := range files {
+		slog.Infof("loading %s", f)
+		//loadAndSchedule(f, c)
+		tseq, _ := processJSONFile(f)
+		//if err != nil { }
+		addAndScheduleTasks(tseq, tasks, c)
+	}
+}
+
+func scanFiles(files map[string][16]byte) error {
 	dir := tasksDir
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		//todo: dont return on error,
+		//continue with other files
 		if err != nil {
 			slog.Errorf("Error accessing path %s: %v\n", path, err)
 			return err
 		}
 		if !info.IsDir() && filepath.Ext(path) == ".tasks" {
-			tseq, err := processJSONFile(path)
+			f, err := os.ReadFile(path)
 			if err != nil {
+				slog.Errorf("Error reading file %s: %v\n", path, err)
 				return err
 			}
-			addAndScheduleTasks(tseq, tasks, c)
+			files[path] = md5.Sum(f)
 		}
 		return nil
 	})
-	if err != nil {
-		slog.Fatal(err)
-	}
+	return err
 }
 
 func processJSONFile(filePath string) (*TasksSequence, error) {
