@@ -167,12 +167,9 @@ func runTaskCommands(tseq *TasksSequence) {
 		slog.Infof("Skipping '%s'", tseq.Title)
 		return
 	}
-	run := populateRun(tseq)
+	run := initRun(tseq)
+	tseq.History = append(tseq.History, run)
 	run.Status = Running
-	defer func() {
-		run.EndTime = time.Now()
-		tseq.History = append(tseq.History, run)
-	}()
 	slog.Infof("Running '%s'", tseq.Title)
 
 	var taskFail bool
@@ -188,9 +185,10 @@ func runTaskCommands(tseq *TasksSequence) {
 	if taskFail {
 		run.Status = RunFailure
 	}
+	run.EndTime = time.Now()
 }
 
-func populateRun(tseq *TasksSequence) *TasksSequenceRun {
+func initRun(tseq *TasksSequence) *TasksSequenceRun {
 	run := &TasksSequenceRun{
 		ID:        uuid.New().String(),
 		StartTime: time.Now(),
