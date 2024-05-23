@@ -315,12 +315,6 @@ func processJSONFile(filePath string) (*TasksSequence, error) {
 }
 
 func addAndScheduleTasks(tseq *TasksSequence, tasks *AMessOfTasks, c *cron.Cron) {
-	for _, existing := range tasks.Tasks {
-		if existing.File == tseq.File && existing.MD5 == tseq.MD5 {
-			slog.Infof("File '%s' already loaded, skipping.", tseq.File)
-			return
-		}
-	}
 	tasks.Tasks = append(tasks.Tasks, tseq)
 	slog.Infof("Added TasksSequence '%s' from file '%s'", tseq.Title, tseq.File)
 	tseq.cronJobFunc = func() { runTaskCommands(tseq) }
