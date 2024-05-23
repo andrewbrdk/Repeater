@@ -259,7 +259,7 @@ func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
 			//err := reload(tseq.File)
 			delete(files, tseq.File)
 		} else if md5 == tseq.MD5 {
-			slog.Infof("file %s has not changed, nothin to do", tseq.File)
+			slog.Infof("file %s has not changed, skipping", tseq.File)
 			delete(files, tseq.File)
 		} else {
 			panic("This is not supposed to happen")
@@ -268,7 +268,7 @@ func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
 	for f := range files {
 		slog.Infof("loading %s", f)
 		//loadAndSchedule(f, c)
-		tseq, _ := processJSONFile(f)
+		tseq, _ := processTasksFile(f)
 		//if err != nil { }
 		addAndScheduleTasks(tseq, tasks, c)
 	}
@@ -296,19 +296,19 @@ func scanFiles(files map[string][16]byte) error {
 	return err
 }
 
-func processJSONFile(filePath string) (*TasksSequence, error) {
+func processTasksFile(filePath string) (*TasksSequence, error) {
 	var tseq TasksSequence
 	tseq.File = filePath
 	tseq.OnOff = true
-	jsonFile, err := os.ReadFile(filePath)
+	f, err := os.ReadFile(filePath)
 	if err != nil {
-		slog.Errorf("Error reading JSON file %s: %v\n", filePath, err)
+		slog.Errorf("Error reading file %s: %v\n", filePath, err)
 		return nil, err
 	}
-	tseq.MD5 = md5.Sum(jsonFile)
-	err = json.Unmarshal(jsonFile, &tseq)
+	tseq.MD5 = md5.Sum(f)
+	err = json.Unmarshal(f, &tseq)
 	if err != nil {
-		slog.Errorf("Error parsing JSON file %s: %v\n", filePath, err)
+		slog.Errorf("Error parsing file %s: %v\n", filePath, err)
 		return nil, err
 	}
 	return &tseq, nil
