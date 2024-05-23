@@ -293,7 +293,7 @@ const webTasksList = `
 </head>
 <body>
     <h1>Tasks</h1>
-    {{range $i, $t := .Tasks}}
+    {{range $i, $t := .Mess.Tasks}}
     <div>
     <details open>
 	<summary>
@@ -334,88 +334,8 @@ const webTasksList = `
 </html>
 `
 
-func httpServer(tasks *AMessOfTasks) {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		httpListTasks(w, r, tasks)
-	})
-	http.HandleFunc("/onoff", func(w http.ResponseWriter, r *http.Request) {
-		httpOnOff(w, r, tasks)
-	})
-	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
-		httpRestart(w, r, tasks)
-	})
-	slog.Fatal(http.ListenAndServe(port, nil))
-}
-
-func httpListTasks(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
-	uuid := r.URL.Query().Get("uuid")
-
-	for _, taskSeq := range tasks.Tasks {
-		taskSeq.ShowRestartButton = false
-		for _, seqRun := range taskSeq.History {
-			if seqRun.ID == uuid {
-				taskSeq.ShowRestartButton = true
-				taskSeq.RestartUUID = uuid
-			}
-			for _, taskRun := range seqRun.Details {
-				if taskRun.ID == uuid {
-					taskSeq.ShowRestartButton = true
-					taskSeq.RestartUUID = uuid
-				}
-			}
-		}
-	}
-
-	tmpl := template.New("tmpl")
-	tmpl = template.Must(tmpl.Parse(webTasksList))
-	err := tmpl.Execute(w, tasks)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-}
-
-func httpOnOff(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
-	taskidx_str := r.URL.Query().Get("taskidx")
-	taskidx, err := strconv.Atoi(taskidx_str)
-	if err != nil {
-		slog.Errorf("error converting taskidx string %s to int", taskidx_str)
-		//todo: ?
-		http.Error(w, "TasksSequence not found", http.StatusNotFound)
-		return
-	} else if taskidx >= len(tasks.Tasks) || taskidx < 0 {
-		slog.Errorf("incorrect task index %v", taskidx)
-		//todo: ?
-		http.Error(w, "TasksSequence not found", http.StatusNotFound)
-		return
-	}
-	ts := tasks.Tasks[taskidx]
-	ts.OnOff = !ts.OnOff
-	slog.Infof("Toggled state of %s to %v", ts.Title, ts.OnOff)
-}
-
-func httpRestart(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
-	uuid := r.URL.Query().Get("uuid")
-	if uuid == "" {
-		http.Error(w, "UUID parameter is required", http.StatusBadRequest)
-		return
-	}
-
-	for _, taskSeq := range tasks.Tasks {
-		for _, seqRun := range taskSeq.History {
-			if seqRun.ID == uuid {
-				restartTaskSequenceRun(taskSeq, seqRun)
-				return
-			}
-			for _, taskRun := range seqRun.Details {
-				if taskRun.ID == uuid {
-					restartSpecificTaskRun(taskSeq, taskRun)
-					return
-				}
-			}
-		}
-	}
-	http.Error(w, "TaskSequenceRun or TaskRun not found", http.StatusNotFound)
+type HTMLTemplateData struct {
+	Mess *AMessOfTasks
 }
 
 func (s RunStatus) HTMLStatus() template.HTML {
@@ -462,4 +382,89 @@ func (tseq TasksSequence) HTMLHistoryTable() template.HTML {
 	}
 	sb.WriteString("</table>\n")
 	return template.HTML(sb.String())
+}
+
+func httpServer(tasks *AMessOfTasks) {
+	template_data := &HTMLTemplateData{Mess: tasks}
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		httpListTasks(w, r, template_data)
+	})
+	http.HandleFunc("/onoff", func(w http.ResponseWriter, r *http.Request) {
+		httpOnOff(w, r, template_data)
+	})
+	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
+		httpRestart(w, r, template_data)
+	})
+	slog.Fatal(http.ListenAndServe(port, nil))
+}
+
+func httpListTasks(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
+	uuid := r.URL.Query().Get("uuid")
+
+	for _, taskSeq := range template_data.Mess.Tasks {
+		taskSeq.ShowRestartButton = false
+		for _, seqRun := range taskSeq.History {
+			if seqRun.ID == uuid {
+				taskSeq.ShowRestartButton = true
+				taskSeq.RestartUUID = uuid
+			}
+			for _, taskRun := range seqRun.Details {
+				if taskRun.ID == uuid {
+					taskSeq.ShowRestartButton = true
+					taskSeq.RestartUUID = uuid
+				}
+			}
+		}
+	}
+
+	tmpl := template.New("tmpl")
+	tmpl = template.Must(tmpl.Parse(webTasksList))
+	err := tmpl.Execute(w, template_data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func httpOnOff(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
+	taskidx_str := r.URL.Query().Get("taskidx")
+	taskidx, err := strconv.Atoi(taskidx_str)
+	if err != nil {
+		slog.Errorf("error converting taskidx string %s to int", taskidx_str)
+		//todo: ?
+		http.Error(w, "TasksSequence not found", http.StatusNotFound)
+		return
+	} else if taskidx >= len(template_data.Mess.Tasks) || taskidx < 0 {
+		slog.Errorf("incorrect task index %v", taskidx)
+		//todo: ?
+		http.Error(w, "TasksSequence not found", http.StatusNotFound)
+		return
+	}
+	ts := template_data.Mess.Tasks[taskidx]
+	ts.OnOff = !ts.OnOff
+	slog.Infof("Toggled state of %s to %v", ts.Title, ts.OnOff)
+}
+
+func httpRestart(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
+	uuid := r.URL.Query().Get("uuid")
+	if uuid == "" {
+		http.Error(w, "UUID parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	for _, taskSeq := range template_data.Mess.Tasks {
+		for _, seqRun := range taskSeq.History {
+			if seqRun.ID == uuid {
+				restartTaskSequenceRun(taskSeq, seqRun)
+				return
+			}
+			for _, taskRun := range seqRun.Details {
+				if taskRun.ID == uuid {
+					restartSpecificTaskRun(taskSeq, taskRun)
+					return
+				}
+			}
+		}
+	}
+	http.Error(w, "TaskSequenceRun or TaskRun not found", http.StatusNotFound)
 }
