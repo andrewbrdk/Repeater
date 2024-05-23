@@ -51,7 +51,7 @@ const webTasksList = `
     {{end}}
     <script>
         function toggleState(title) {
-            fetch('/toggle-state?title=' + title)
+            fetch('/toggle?title=' + title)
                 .then(response => {
                     location.reload();
                 })
@@ -60,7 +60,7 @@ const webTasksList = `
                 });
         }
         function restartTask(uuid) {
-            fetch('/restart-task?uuid=' + uuid)
+            fetch('/restart?uuid=' + uuid)
                 .then(response => {
                     location.reload();
                 })
@@ -80,19 +80,6 @@ const (
 	RunFailure
 	NoRun
 )
-
-func (s RunStatus) String() string {
-	switch s {
-	case RunSuccess:
-		return "success"
-	case RunFailure:
-		return "failure"
-	case NoRun:
-		return "no run"
-	default:
-		return "unknown"
-	}
-}
 
 func (s RunStatus) HTMLStatus() template.HTML {
 	switch s {
@@ -156,91 +143,7 @@ func main() {
 	c.Start()
 	dirScanCronJobFunc := func() { scanAndScheduleTasks(&tasks, c) }
 	c.AddFunc(scanTasksSchedule, dirScanCronJobFunc)
-	webServer(&tasks)
-}
-
-func webServer(tasks *AMessOfTasks) {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		listTasks(w, r, tasks)
-	})
-	http.HandleFunc("/toggle-state", func(w http.ResponseWriter, r *http.Request) {
-		toggleStateHandler(w, r, tasks)
-	})
-	http.HandleFunc("/restart-task", func(w http.ResponseWriter, r *http.Request) {
-		restartTaskHandler(w, r, tasks)
-	})
-	slog.Fatal(http.ListenAndServe(port, nil))
-}
-
-func listTasks(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
-	uuid := r.URL.Query().Get("uuid")
-
-	for _, taskSeq := range tasks.Tasks {
-		taskSeq.ShowRestartButton = false
-		for _, seqRun := range taskSeq.History {
-			if seqRun.ID == uuid {
-				taskSeq.ShowRestartButton = true
-				taskSeq.RestartUUID = uuid
-			}
-			for _, taskRun := range seqRun.Details {
-				if taskRun.ID == uuid {
-					taskSeq.ShowRestartButton = true
-					taskSeq.RestartUUID = uuid
-				}
-			}
-		}
-	}
-
-	tmpl := template.New("tmpl")
-	tmpl = template.Must(tmpl.Parse(webTasksList))
-	err := tmpl.Execute(w, tasks)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-}
-
-func (tseq TasksSequence) HTMLHistoryTable() template.HTML {
-	var sb strings.Builder
-	sb.WriteString("<table>\n")
-	for r := -1; r < len(tseq.Tasks); r++ {
-		sb.WriteString("<tr>\n")
-		for c := -1; c <= len(tseq.History); c++ {
-			if r == -1 && c == -1 {
-				sb.WriteString("<th> </th>")
-			} else if r == -1 && c < len(tseq.History) {
-				runID := tseq.History[c].ID
-				sb.WriteString(fmt.Sprintf("<th> <a href=\"/?uuid=%s\">%s</a> </th>", runID, tseq.History[c].Status.HTMLStatus()))
-			} else if r == -1 && c == len(tseq.History) {
-				sb.WriteString("<th>&#9633;</th>")
-			} else if c == -1 {
-				sb.WriteString(fmt.Sprintf("<td> %s </td>", html.EscapeString(tseq.Tasks[r].Name)))
-			} else if c < len(tseq.History) {
-				taskRunID := tseq.History[c].Details[r].ID
-				sb.WriteString(fmt.Sprintf("<td> <a href=\"/?uuid=%s\">%s</a> </td>", taskRunID, tseq.History[c].Details[r].Status.HTMLStatus()))
-			} else if c == len(tseq.History) {
-				sb.WriteString("<td>&#9633;</td>")
-			} else {
-				slog.Error("this is not supposed to happen")
-			}
-		}
-		sb.WriteString("</tr>\n")
-	}
-	sb.WriteString("</table>\n")
-	return template.HTML(sb.String())
-}
-
-func toggleStateHandler(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
-	title := r.FormValue("title")
-
-	for _, taskSeq := range tasks.Tasks {
-		if taskSeq.Title == title {
-			taskSeq.OnOff = !taskSeq.OnOff
-			slog.Infof("Toggled state of %s to %v", title, taskSeq.OnOff)
-			return
-		}
-	}
-	http.Error(w, "TasksSequence not found", http.StatusNotFound)
+	httpServer(&tasks)
 }
 
 func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
@@ -382,30 +285,6 @@ func executeCommand(command string) (string, error) {
 	return string(output), nil
 }
 
-func restartTaskHandler(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
-	uuid := r.URL.Query().Get("uuid")
-	if uuid == "" {
-		http.Error(w, "UUID parameter is required", http.StatusBadRequest)
-		return
-	}
-
-	for _, taskSeq := range tasks.Tasks {
-		for _, seqRun := range taskSeq.History {
-			if seqRun.ID == uuid {
-				restartTaskSequenceRun(taskSeq, seqRun)
-				return
-			}
-			for _, taskRun := range seqRun.Details {
-				if taskRun.ID == uuid {
-					restartSpecificTaskRun(taskSeq, taskRun)
-					return
-				}
-			}
-		}
-	}
-	http.Error(w, "TaskSequenceRun or TaskRun not found", http.StatusNotFound)
-}
-
 func restartTaskSequenceRun(tseq *TasksSequence, seqRun *TasksSequenceRun) {
 	slog.Infof("Restarting TaskSequenceRun %s", seqRun.ID)
 
@@ -466,4 +345,112 @@ func restartSpecificTaskRun(tseq *TasksSequence, taskRun *TaskRun) {
 			}
 		}
 	}
+}
+
+func httpServer(tasks *AMessOfTasks) {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		httpListTasks(w, r, tasks)
+	})
+	http.HandleFunc("/toggle", func(w http.ResponseWriter, r *http.Request) {
+		httpToggle(w, r, tasks)
+	})
+	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
+		httpRestart(w, r, tasks)
+	})
+	slog.Fatal(http.ListenAndServe(port, nil))
+}
+
+func httpListTasks(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
+	uuid := r.URL.Query().Get("uuid")
+
+	for _, taskSeq := range tasks.Tasks {
+		taskSeq.ShowRestartButton = false
+		for _, seqRun := range taskSeq.History {
+			if seqRun.ID == uuid {
+				taskSeq.ShowRestartButton = true
+				taskSeq.RestartUUID = uuid
+			}
+			for _, taskRun := range seqRun.Details {
+				if taskRun.ID == uuid {
+					taskSeq.ShowRestartButton = true
+					taskSeq.RestartUUID = uuid
+				}
+			}
+		}
+	}
+
+	tmpl := template.New("tmpl")
+	tmpl = template.Must(tmpl.Parse(webTasksList))
+	err := tmpl.Execute(w, tasks)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func httpToggle(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
+	title := r.FormValue("title")
+
+	for _, taskSeq := range tasks.Tasks {
+		if taskSeq.Title == title {
+			taskSeq.OnOff = !taskSeq.OnOff
+			slog.Infof("Toggled state of %s to %v", title, taskSeq.OnOff)
+			return
+		}
+	}
+	http.Error(w, "TasksSequence not found", http.StatusNotFound)
+}
+
+func httpRestart(w http.ResponseWriter, r *http.Request, tasks *AMessOfTasks) {
+	uuid := r.URL.Query().Get("uuid")
+	if uuid == "" {
+		http.Error(w, "UUID parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	for _, taskSeq := range tasks.Tasks {
+		for _, seqRun := range taskSeq.History {
+			if seqRun.ID == uuid {
+				restartTaskSequenceRun(taskSeq, seqRun)
+				return
+			}
+			for _, taskRun := range seqRun.Details {
+				if taskRun.ID == uuid {
+					restartSpecificTaskRun(taskSeq, taskRun)
+					return
+				}
+			}
+		}
+	}
+	http.Error(w, "TaskSequenceRun or TaskRun not found", http.StatusNotFound)
+}
+
+func (tseq TasksSequence) HTMLHistoryTable() template.HTML {
+	var sb strings.Builder
+	sb.WriteString("<table>\n")
+	for r := -1; r < len(tseq.Tasks); r++ {
+		sb.WriteString("<tr>\n")
+		for c := -1; c <= len(tseq.History); c++ {
+			if r == -1 && c == -1 {
+				sb.WriteString("<th> </th>")
+			} else if r == -1 && c < len(tseq.History) {
+				runID := tseq.History[c].ID
+				sb.WriteString(fmt.Sprintf("<th> <a href=\"/?uuid=%s\">%s</a> </th>", runID, tseq.History[c].Status.HTMLStatus()))
+			} else if r == -1 && c == len(tseq.History) {
+				sb.WriteString("<th>&#9633;</th>")
+			} else if c == -1 {
+				sb.WriteString(fmt.Sprintf("<td> %s </td>", html.EscapeString(tseq.Tasks[r].Name)))
+			} else if c < len(tseq.History) {
+				taskRunID := tseq.History[c].Details[r].ID
+				sb.WriteString(fmt.Sprintf("<td> <a href=\"/?uuid=%s\">%s</a> </td>", taskRunID, tseq.History[c].Details[r].Status.HTMLStatus()))
+			} else if c == len(tseq.History) {
+				sb.WriteString("<td>&#9633;</td>")
+			} else {
+				slog.Error("this is not supposed to happen")
+			}
+		}
+		sb.WriteString("</tr>\n")
+	}
+	sb.WriteString("</table>\n")
+	return template.HTML(sb.String())
 }
