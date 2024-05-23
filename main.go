@@ -21,7 +21,7 @@ import (
 
 const port = ":8080"
 const tasksDir = "./"
-const scanTasksSchedule = "*/10 * * * * *"
+const scanSchedule = "*/10 * * * * *"
 
 type RunStatus int
 
@@ -74,9 +74,11 @@ type AMessOfTasks struct {
 func main() {
 	var tasks AMessOfTasks
 	c := cron.New(cron.WithSeconds())
+	c.AddFunc(
+		scanSchedule,
+		func() { scanAndScheduleTasks(&tasks, c) },
+	)
 	c.Start()
-	dirScanCronJobFunc := func() { scanAndScheduleTasks(&tasks, c) }
-	c.AddFunc(scanTasksSchedule, dirScanCronJobFunc)
 	httpServer(&tasks)
 }
 
@@ -106,7 +108,7 @@ func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
 		slog.Infof("loading %s", f)
 		tseq, _ := processTasksFile(f)
 		//if err != nil { }
-		addAndScheduleTasks(tseq, tasks, c)
+		scheduleTasks(tseq, tasks, c)
 	}
 }
 
@@ -150,7 +152,7 @@ func processTasksFile(filePath string) (*TasksSequence, error) {
 	return &tseq, nil
 }
 
-func addAndScheduleTasks(tseq *TasksSequence, tasks *AMessOfTasks, c *cron.Cron) {
+func scheduleTasks(tseq *TasksSequence, tasks *AMessOfTasks, c *cron.Cron) {
 	tasks.Tasks = append(tasks.Tasks, tseq)
 	slog.Infof("Added TasksSequence '%s' from file '%s'", tseq.Title, tseq.File)
 	tseq.cronJobFunc = func() { runTaskCommands(tseq) }
