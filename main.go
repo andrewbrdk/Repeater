@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/md5"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"html/template"
@@ -283,6 +284,17 @@ func restartSpecificTaskRun(tseq *TasksSequence, taskRun *TaskRun) {
 	}
 }
 
+func sequenceOnOff(taskidx int, tasks *AMessOfTasks) error {
+	if taskidx >= len(tasks.Tasks) || taskidx < 0 {
+		slog.Errorf("incorrect task index %v", taskidx)
+		return errors.New("incorrect task index")
+	}
+	ts := tasks.Tasks[taskidx]
+	ts.OnOff = !ts.OnOff
+	slog.Infof("Toggled state of %s to %v", ts.Title, ts.OnOff)
+	return nil
+}
+
 const webTasksList = `
 <!DOCTYPE html>
 <html lang="en">
@@ -434,15 +446,11 @@ func httpOnOff(w http.ResponseWriter, r *http.Request, template_data *HTMLTempla
 		//todo: ?
 		http.Error(w, "TasksSequence not found", http.StatusNotFound)
 		return
-	} else if taskidx >= len(template_data.Mess.Tasks) || taskidx < 0 {
-		slog.Errorf("incorrect task index %v", taskidx)
-		//todo: ?
-		http.Error(w, "TasksSequence not found", http.StatusNotFound)
-		return
 	}
-	ts := template_data.Mess.Tasks[taskidx]
-	ts.OnOff = !ts.OnOff
-	slog.Infof("Toggled state of %s to %v", ts.Title, ts.OnOff)
+	err = sequenceOnOff(taskidx, template_data.Mess)
+	if err != nil {
+		http.Error(w, "TasksSequence not found", http.StatusNotFound)
+	}
 }
 
 func httpRestart(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
