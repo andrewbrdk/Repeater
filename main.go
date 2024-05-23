@@ -167,40 +167,17 @@ func runTaskCommands(tseq *TasksSequence) {
 		slog.Infof("Skipping '%s'", tseq.Title)
 		return
 	}
-	slog.Infof("Running '%s'", tseq.Title)
-
-	run := &TasksSequenceRun{
-		ID:        uuid.New().String(),
-		StartTime: time.Now(),
-	}
+	run := populateRun(tseq)
+	run.Status = Running
 	defer func() {
 		run.EndTime = time.Now()
 		tseq.History = append(tseq.History, run)
 	}()
-	for _, c := range tseq.Tasks {
-		run.Details = append(run.Details, &TaskRun{
-			ID:     uuid.New().String(),
-			Name:   c.Name,
-			Cmd:    c.Cmd,
-			Status: NoRun,
-		})
-	}
+	slog.Infof("Running '%s'", tseq.Title)
 
 	var taskFail bool
-	for i, c := range tseq.Tasks {
-		cmdStartTime := time.Now()
-		output, err := executeCommand(c.Cmd)
-		cmdEndTime := time.Now()
-		cmdStatus := RunSuccess
-		if err != nil {
-			slog.Errorf("Error executing '%s'-'%s': %v\n", tseq.Title, c.Name, err)
-			cmdStatus = RunFailure
-			run.Status = RunFailure
-		}
-		slog.Infof("Task '%s', command '%s', output: '%s'\n", tseq.Title, c.Name, output)
-		run.Details[i].StartTime = cmdStartTime
-		run.Details[i].EndTime = cmdEndTime
-		run.Details[i].Status = cmdStatus
+	for _, tr := range run.Details {
+		err := cmdRun(tr, tseq.Title)
 		if err != nil {
 			taskFail = true
 			slog.Errorf("Should be skipping to next task")
@@ -211,7 +188,35 @@ func runTaskCommands(tseq *TasksSequence) {
 	if taskFail {
 		run.Status = RunFailure
 	}
+}
 
+func populateRun(tseq *TasksSequence) *TasksSequenceRun {
+	run := &TasksSequenceRun{
+		ID:        uuid.New().String(),
+		StartTime: time.Now(),
+	}
+	for _, c := range tseq.Tasks {
+		run.Details = append(run.Details, &TaskRun{
+			ID:     uuid.New().String(),
+			Name:   c.Name,
+			Cmd:    c.Cmd,
+			Status: NoRun,
+		})
+	}
+	return run
+}
+
+func cmdRun(tr *TaskRun, title string) error {
+	tr.StartTime = time.Now()
+	output, err := executeCommand(tr.Cmd)
+	tr.EndTime = time.Now()
+	tr.Status = RunSuccess
+	if err != nil {
+		slog.Errorf("Error executing '%s'-'%s': %v\n", title, tr.Name, err)
+		tr.Status = RunFailure
+	}
+	slog.Infof("Task '%s', command '%s', output: '%s'\n", title, tr.Name, output)
+	return err
 }
 
 func executeCommand(command string) (string, error) {
