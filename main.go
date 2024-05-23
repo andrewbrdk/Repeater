@@ -60,7 +60,6 @@ type TasksSequence struct {
 	Cron              string  `json:"cron"`
 	Tasks             []*Task `json:"tasks"`
 	cronID            cron.EntryID
-	cronJobFunc       cron.FuncJob
 	History           []*TasksSequenceRun
 	OnOff             bool
 	ShowRestartButton bool
@@ -154,9 +153,11 @@ func processTasksFile(filePath string) (*TasksSequence, error) {
 
 func scheduleTasks(tseq *TasksSequence, tasks *AMessOfTasks, c *cron.Cron) {
 	tasks.Tasks = append(tasks.Tasks, tseq)
+	tseq.cronID, _ = c.AddFunc(
+		tseq.Cron,
+		func() { runTaskCommands(tseq) },
+	)
 	slog.Infof("Added TasksSequence '%s' from file '%s'", tseq.Title, tseq.File)
-	tseq.cronJobFunc = func() { runTaskCommands(tseq) }
-	tseq.cronID, _ = c.AddFunc(tseq.Cron, tseq.cronJobFunc)
 }
 
 func runTaskCommands(tseq *TasksSequence) {
