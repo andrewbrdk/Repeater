@@ -54,7 +54,6 @@ type TasksSequenceRun struct {
 	EndTime   time.Time
 	Status    RunStatus
 	Details   []*TaskRun
-	Attempt   int
 }
 
 type TasksSequence struct {
@@ -178,7 +177,6 @@ func initRun(tseq *TasksSequence) *TasksSequenceRun {
 	run := &TasksSequenceRun{
 		ID:        uuid.New().String(),
 		StartTime: time.Now(),
-		Attempt:   0,
 	}
 	for _, c := range tseq.Tasks {
 		run.Details = append(run.Details, &TaskRun{
@@ -196,7 +194,6 @@ func initRun(tseq *TasksSequence) *TasksSequenceRun {
 func runSequence(run *TasksSequenceRun, tseq *TasksSequence) error {
 	run.Status = Running
 	slog.Infof("Running '%s'", tseq.Title)
-	run.Attempt += 1
 
 	var taskFail bool
 	for _, tr := range run.Details {
