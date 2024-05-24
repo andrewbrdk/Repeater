@@ -159,34 +159,19 @@ func scheduleTasks(tseq *TasksSequence, tasks *AMessOfTasks, c *cron.Cron) {
 	tasks.Tasks = append(tasks.Tasks, tseq)
 	tseq.cronID, _ = c.AddFunc(
 		tseq.Cron,
-		func() { runTaskCommands(tseq) },
+		func() { runScheduled(tseq) },
 	)
 	slog.Infof("Added TasksSequence '%s' from file '%s'", tseq.Title, tseq.File)
 }
 
-func runTaskCommands(tseq *TasksSequence) {
+func runScheduled(tseq *TasksSequence) {
 	if !tseq.OnOff {
 		slog.Infof("Skipping '%s'", tseq.Title)
 		return
 	}
 	run := initRun(tseq)
-	tseq.History = append(tseq.History, run)
-	run.Status = Running
-	slog.Infof("Running '%s'", tseq.Title)
-
-	var taskFail bool
-	for _, tr := range run.Details {
-		err := cmdRun(tr, tseq.Title)
-		if err != nil {
-			taskFail = true
-			break
-		}
-	}
-	run.Status = RunSuccess
-	if taskFail {
-		run.Status = RunFailure
-	}
-	run.EndTime = time.Now()
+	runSequence(run, tseq)
+	//todo: check for error
 }
 
 func initRun(tseq *TasksSequence) *TasksSequenceRun {
@@ -204,12 +189,35 @@ func initRun(tseq *TasksSequence) *TasksSequenceRun {
 			Attempt: 0,
 		})
 	}
+	tseq.History = append(tseq.History, run)
 	return run
 }
 
-func cmdRun(tr *TaskRun, title string) error {
+func runSequence(run *TasksSequenceRun, tseq *TasksSequence) error {
+	run.Status = Running
+	slog.Infof("Running '%s'", tseq.Title)
+	run.Attempt += 1
+
+	var taskFail bool
+	for _, tr := range run.Details {
+		err := runCommand(tr, tseq.Title)
+		if err != nil {
+			taskFail = true
+			break
+		}
+	}
+	run.Status = RunSuccess
+	if taskFail {
+		run.Status = RunFailure
+	}
+	run.EndTime = time.Now()
+	//todo: return error
+	return nil
+}
+
+func runCommand(tr *TaskRun, title string) error {
 	tr.StartTime = time.Now()
-	output, err := executeCommand(tr.Cmd)
+	output, err := executeCmd(tr.Cmd)
 	tr.EndTime = time.Now()
 	tr.Attempt += tr.Attempt
 	tr.Status = RunSuccess
@@ -221,7 +229,7 @@ func cmdRun(tr *TaskRun, title string) error {
 	return err
 }
 
-func executeCommand(command string) (string, error) {
+func executeCmd(command string) (string, error) {
 	cmd := exec.Command("/bin/bash", "-c", command)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -233,42 +241,17 @@ func executeCommand(command string) (string, error) {
 func restartTaskSequenceRun(tseq *TasksSequence, seqRun *TasksSequenceRun) {
 	slog.Infof("Restarting TaskSequenceRun %s", seqRun.ID)
 
-	newSeqRun := &TasksSequenceRun{ID: uuid.New().String(), StartTime: time.Now()}
-	defer func() {
-		newSeqRun.EndTime = time.Now()
-		tseq.History = append(tseq.History, newSeqRun)
-	}()
-
-	for _, taskRun := range seqRun.Details {
-		newTaskRun := &TaskRun{
-			ID:        uuid.New().String(),
-			Name:      taskRun.Name,
-			Cmd:       taskRun.Cmd,
-			StartTime: time.Now(),
-		}
-
-		output, err := executeCommand(taskRun.Cmd)
-		newTaskRun.EndTime = time.Now()
-		if err != nil {
-			slog.Errorf("Error executing '%s'-'%s': %v\n", tseq.Title, taskRun.Name, err)
-			newTaskRun.Status = RunFailure
-			newSeqRun.Status = RunFailure
-		} else {
-			newTaskRun.Status = RunSuccess
-		}
-
-		slog.Infof("Task '%s', command '%s', output: '%s'\n", tseq.Title, taskRun.Name, output)
-		newSeqRun.Details = append(newSeqRun.Details, newTaskRun)
+	seqRun.Status = NoRun
+	for _, r := range seqRun.Details {
+		r.Status = NoRun
 	}
 
-	if newSeqRun.Status != RunFailure {
-		newSeqRun.Status = RunSuccess
-	}
+	runSequence(seqRun, tseq)
 }
 
 func restartTaskRun(tseq *TasksSequence, taskRun *TaskRun) {
 	slog.Infof("Restarting TaskRun %s", taskRun.ID)
-	cmdRun(taskRun, tseq.Title)
+	runCommand(taskRun, tseq.Title)
 	//todo: add error check
 }
 
@@ -305,7 +288,7 @@ const webTasksList = `
     {{.HTMLHistoryTable}}
     </div>
     {{if .ShowRestartButton}}
-    <button onclick="restartTask('{{.RestartUUID}}')">Restart</button>
+    <button onclick="restart('{{.RestartUUID}}')">Restart</button>
     {{end}}
     </details>
     </div>
@@ -320,7 +303,7 @@ const webTasksList = `
                     console.error('Error toggling state:', error);
                 });
         }
-        function restartTask(uuid) {
+        function restart(uuid) {
             fetch('/restart?uuid=' + uuid)
                 .then(response => {
                     location.reload();
