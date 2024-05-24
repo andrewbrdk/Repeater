@@ -45,6 +45,7 @@ type TaskRun struct {
 	StartTime time.Time
 	EndTime   time.Time
 	Status    RunStatus
+	Attempt   int
 }
 
 type TasksSequenceRun struct {
@@ -53,6 +54,7 @@ type TasksSequenceRun struct {
 	EndTime   time.Time
 	Status    RunStatus
 	Details   []*TaskRun
+	Attempt   int
 }
 
 type TasksSequence struct {
@@ -191,13 +193,15 @@ func initRun(tseq *TasksSequence) *TasksSequenceRun {
 	run := &TasksSequenceRun{
 		ID:        uuid.New().String(),
 		StartTime: time.Now(),
+		Attempt:   0,
 	}
 	for _, c := range tseq.Tasks {
 		run.Details = append(run.Details, &TaskRun{
-			ID:     uuid.New().String(),
-			Name:   c.Name,
-			Cmd:    c.Cmd,
-			Status: NoRun,
+			ID:      uuid.New().String(),
+			Name:    c.Name,
+			Cmd:     c.Cmd,
+			Status:  NoRun,
+			Attempt: 0,
 		})
 	}
 	return run
@@ -207,6 +211,7 @@ func cmdRun(tr *TaskRun, title string) error {
 	tr.StartTime = time.Now()
 	output, err := executeCommand(tr.Cmd)
 	tr.EndTime = time.Now()
+	tr.Attempt += tr.Attempt
 	tr.Status = RunSuccess
 	if err != nil {
 		slog.Errorf("Error executing '%s'-'%s': %v\n", title, tr.Name, err)
