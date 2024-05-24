@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gookit/slog"
 	"github.com/robfig/cron/v3"
 )
@@ -39,7 +38,6 @@ type Task struct {
 }
 
 type TaskRun struct {
-	ID        string
 	Name      string
 	Cmd       string
 	StartTime time.Time
@@ -49,7 +47,6 @@ type TaskRun struct {
 }
 
 type TasksSequenceRun struct {
-	ID        string
 	StartTime time.Time
 	EndTime   time.Time
 	Status    RunStatus
@@ -175,12 +172,10 @@ func runScheduled(tseq *TasksSequence) {
 
 func initRun(tseq *TasksSequence) *TasksSequenceRun {
 	run := &TasksSequenceRun{
-		ID:        uuid.New().String(),
 		StartTime: time.Now(),
 	}
 	for _, c := range tseq.Tasks {
 		run.Details = append(run.Details, &TaskRun{
-			ID:      uuid.New().String(),
 			Name:    c.Name,
 			Cmd:     c.Cmd,
 			Status:  NoRun,
@@ -236,18 +231,14 @@ func executeCmd(command string) (string, error) {
 }
 
 func restartTaskSequenceRun(tseq *TasksSequence, seqRun *TasksSequenceRun) {
-	slog.Infof("Restarting TaskSequenceRun %s", seqRun.ID)
-
 	seqRun.Status = NoRun
 	for _, r := range seqRun.Details {
 		r.Status = NoRun
 	}
-
 	runSequence(seqRun, tseq)
 }
 
 func restartTaskRun(tseq *TasksSequence, taskRun *TaskRun) {
-	slog.Infof("Restarting TaskRun %s", taskRun.ID)
 	runCommand(taskRun, tseq.Title)
 	//todo: add error check
 }
@@ -315,7 +306,9 @@ const webTasksList = `
 `
 
 type HTMLTemplateData struct {
-	Mess *AMessOfTasks
+	run_idx int
+	cmd_idx int
+	Mess    *AMessOfTasks
 }
 
 func (s RunStatus) HTMLStatus() template.HTML {
@@ -346,15 +339,13 @@ func (tseq TasksSequence) HTMLHistoryTable() template.HTML {
 			if r == -1 && c == -1 {
 				sb.WriteString("<th> </th>")
 			} else if r == -1 && c < len(tseq.History) {
-				runID := tseq.History[c].ID
-				sb.WriteString(fmt.Sprintf("<th> <a href=\"/?uuid=%s\">%s</a> </th>", runID, tseq.History[c].Status.HTMLStatus()))
+				sb.WriteString(fmt.Sprintf("<th> <a href=\"/?run=%v\">%s</a> </th>", c, tseq.History[c].Status.HTMLStatus()))
 			} else if r == -1 && c == len(tseq.History) {
 				sb.WriteString("<th>&#9633;</th>")
 			} else if c == -1 {
 				sb.WriteString(fmt.Sprintf("<td> %s </td>", html.EscapeString(tseq.Tasks[r].Name)))
 			} else if c < len(tseq.History) {
-				taskRunID := tseq.History[c].Details[r].ID
-				sb.WriteString(fmt.Sprintf("<td> <a href=\"/?uuid=%s\">%s</a> </td>", taskRunID, tseq.History[c].Details[r].Status.HTMLStatus()))
+				sb.WriteString(fmt.Sprintf("<td> <a href=\"/?run=%v&cmd=%v\">%s</a> </td>", c, r, tseq.History[c].Details[r].Status.HTMLStatus()))
 			} else if c == len(tseq.History) {
 				sb.WriteString("<td>&#9633;</td>")
 			} else {
@@ -382,27 +373,22 @@ func httpServer(tasks *AMessOfTasks) {
 }
 
 func httpListTasks(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	uuid := r.URL.Query().Get("uuid")
-
-	for _, taskSeq := range template_data.Mess.Tasks {
-		taskSeq.ShowRestartButton = false
-		for _, seqRun := range taskSeq.History {
-			if seqRun.ID == uuid {
-				taskSeq.ShowRestartButton = true
-				taskSeq.RestartUUID = uuid
-			}
-			for _, taskRun := range seqRun.Details {
-				if taskRun.ID == uuid {
-					taskSeq.ShowRestartButton = true
-					taskSeq.RestartUUID = uuid
-				}
-			}
-		}
+	run_str := r.URL.Query().Get("run")
+	cmd_str := r.URL.Query().Get("cmd")
+	run, err := strconv.Atoi(run_str)
+	if err != nil {
+		slog.Errorf("error converting run string %s to int", run_str)
 	}
+	cmd, err := strconv.Atoi(cmd_str)
+	if err != nil {
+		slog.Errorf("error converting cmd string %s to int", cmd_str)
+	}
+	template_data.run_idx = run
+	template_data.cmd_idx = cmd
 
 	tmpl := template.New("tmpl")
 	tmpl = template.Must(tmpl.Parse(webTasksList))
-	err := tmpl.Execute(w, template_data)
+	err = tmpl.Execute(w, template_data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -414,7 +400,7 @@ func httpOnOff(w http.ResponseWriter, r *http.Request, template_data *HTMLTempla
 	taskidx, err := strconv.Atoi(taskidx_str)
 	if err != nil {
 		slog.Errorf("error converting taskidx string %s to int", taskidx_str)
-		http.Error(w, "TasksSequence not found", http.StatusNotFound)
+		http.Error(w, "taskidx not found", http.StatusNotFound)
 		return
 	}
 	err = sequenceOnOff(taskidx, template_data.Mess)
@@ -424,25 +410,33 @@ func httpOnOff(w http.ResponseWriter, r *http.Request, template_data *HTMLTempla
 }
 
 func httpRestart(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	uuid := r.URL.Query().Get("uuid")
-	if uuid == "" {
-		http.Error(w, "UUID parameter is required", http.StatusBadRequest)
+	task_str := r.URL.Query().Get("task")
+	run_str := r.URL.Query().Get("run")
+	cmd_str := r.URL.Query().Get("cmd")
+	task, err := strconv.Atoi(task_str)
+	if err != nil {
+		slog.Errorf("error converting task string %s to int", task_str)
+		return
+	}
+	run, err := strconv.Atoi(run_str)
+	if err != nil {
+		slog.Errorf("error converting run string %s to int", run_str)
+		return
+	}
+	cmd, err := strconv.Atoi(cmd_str)
+	if err != nil {
+		slog.Errorf("error converting cmd string %s to int", cmd_str)
 		return
 	}
 
-	for _, taskSeq := range template_data.Mess.Tasks {
-		for _, seqRun := range taskSeq.History {
-			if seqRun.ID == uuid {
-				restartTaskSequenceRun(taskSeq, seqRun)
-				return
-			}
-			for _, taskRun := range seqRun.Details {
-				if taskRun.ID == uuid {
-					restartTaskRun(taskSeq, taskRun)
-					return
-				}
-			}
-		}
+	t := template_data.Mess.Tasks[task]
+	rn := t.History[run]
+	c := rn.Details[cmd]
+	if rn != nil && c != nil {
+		restartTaskRun(t, c)
+	} else if rn != nil {
+		restartTaskSequenceRun(t, rn)
+	} else {
+		http.Error(w, "TaskSequenceRun or TaskRun not found", http.StatusNotFound)
 	}
-	http.Error(w, "TaskSequenceRun or TaskRun not found", http.StatusNotFound)
 }
