@@ -189,7 +189,6 @@ func initRun(tseq *TasksSequence) *TasksSequenceRun {
 func runSequence(run *TasksSequenceRun, tseq *TasksSequence) error {
 	run.Status = Running
 	slog.Infof("Running '%s'", tseq.Title)
-
 	var taskFail bool
 	for _, tr := range run.Details {
 		err := runCommand(tr, tseq.Title)
@@ -209,6 +208,7 @@ func runSequence(run *TasksSequenceRun, tseq *TasksSequence) error {
 
 func runCommand(tr *TaskRun, title string) error {
 	tr.StartTime = time.Now()
+	tr.Status = Running
 	output, err := executeCmd(tr.Cmd)
 	tr.EndTime = time.Now()
 	tr.Attempt += tr.Attempt
@@ -263,7 +263,6 @@ const webTasksList = `
     <title>Tasks</title>
 </head>
 <body>
-    <h1>Tasks</h1>
     {{range $i, $t := .Mess.Tasks}}
     <div>
     <details open>
@@ -273,17 +272,17 @@ const webTasksList = `
     	<button onclick="onoff( {{$i}} )">{{if .OnOff}}Turn Off{{else}}Turn On{{end}}</button>
 	</summary>
     <div style="overflow-x:auto;">
-    {{.HTMLHistoryTable}}
+    {{.HTMLHistoryTable $i}}
     </div>
     {{if .ShowRestartButton}}
-    <button onclick="restart('{{.RestartUUID}}')">Restart</button>
+    <button onclick="restart( {{$i}}, -1, -1 )">Restart</button>
     {{end}}
     </details>
     </div>
     {{end}}
     <script>
-        function onoff(taskidx) {
-            fetch('/onoff?taskidx=' + taskidx)
+        function onoff(task) {
+            fetch('/onoff?task=' + task)
                 .then(response => {
                     location.reload();
                 })
@@ -291,8 +290,8 @@ const webTasksList = `
                     console.error('Error toggling state:', error);
                 });
         }
-        function restart(uuid) {
-            fetch('/restart?uuid=' + uuid)
+        function restart(task, run, cmd) {
+            fetch('/restart??task=' + task + '&run=' + run + '&cmd=' + cmd)
                 .then(response => {
                     location.reload();
                 })
@@ -306,9 +305,16 @@ const webTasksList = `
 `
 
 type HTMLTemplateData struct {
-	run_idx int
-	cmd_idx int
-	Mess    *AMessOfTasks
+	task_idx int
+	run_idx  int
+	cmd_idx  int
+	Mess     *AMessOfTasks
+}
+
+func (t HTMLTemplateData) HTMLListTasks() template.HTML {
+	var sb strings.Builder
+	sb.WriteString("<h1>Tasks</h1>\n")
+	return template.HTML(sb.String())
 }
 
 func (s RunStatus) HTMLStatus() template.HTML {
@@ -330,7 +336,9 @@ func (s RunStatus) HTMLStatus() template.HTML {
 	}
 }
 
-func (tseq TasksSequence) HTMLHistoryTable() template.HTML {
+func (tseq TasksSequence) HTMLHistoryTable(task_idx int) template.HTML {
+	//todo: move to HTMLTemplateData
+	//tseq := t.Mess.Tasks[task_idx]
 	var sb strings.Builder
 	sb.WriteString("<table>\n")
 	for r := -1; r < len(tseq.Tasks); r++ {
@@ -339,13 +347,13 @@ func (tseq TasksSequence) HTMLHistoryTable() template.HTML {
 			if r == -1 && c == -1 {
 				sb.WriteString("<th> </th>")
 			} else if r == -1 && c < len(tseq.History) {
-				sb.WriteString(fmt.Sprintf("<th> <a href=\"/?run=%v\">%s</a> </th>", c, tseq.History[c].Status.HTMLStatus()))
+				sb.WriteString(fmt.Sprintf("<th> <a href=\"/?task=%v&run=%v\">%s</a> </th>", task_idx, c, tseq.History[c].Status.HTMLStatus()))
 			} else if r == -1 && c == len(tseq.History) {
 				sb.WriteString("<th>&#9633;</th>")
 			} else if c == -1 {
 				sb.WriteString(fmt.Sprintf("<td> %s </td>", html.EscapeString(tseq.Tasks[r].Name)))
 			} else if c < len(tseq.History) {
-				sb.WriteString(fmt.Sprintf("<td> <a href=\"/?run=%v&cmd=%v\">%s</a> </td>", c, r, tseq.History[c].Details[r].Status.HTMLStatus()))
+				sb.WriteString(fmt.Sprintf("<td> <a href=\"/?task=%v&run=%v&cmd=%v\">%s</a> </td>", task_idx, c, r, tseq.History[c].Details[r].Status.HTMLStatus()))
 			} else if c == len(tseq.History) {
 				sb.WriteString("<td>&#9633;</td>")
 			} else {
@@ -373,22 +381,10 @@ func httpServer(tasks *AMessOfTasks) {
 }
 
 func httpListTasks(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	run_str := r.URL.Query().Get("run")
-	cmd_str := r.URL.Query().Get("cmd")
-	run, err := strconv.Atoi(run_str)
-	if err != nil {
-		slog.Errorf("error converting run string %s to int", run_str)
-	}
-	cmd, err := strconv.Atoi(cmd_str)
-	if err != nil {
-		slog.Errorf("error converting cmd string %s to int", cmd_str)
-	}
-	template_data.run_idx = run
-	template_data.cmd_idx = cmd
-
+	httpParseTaskRunCmd(r, template_data)
 	tmpl := template.New("tmpl")
 	tmpl = template.Must(tmpl.Parse(webTasksList))
-	err = tmpl.Execute(w, template_data)
+	err := tmpl.Execute(w, template_data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -396,42 +392,30 @@ func httpListTasks(w http.ResponseWriter, r *http.Request, template_data *HTMLTe
 }
 
 func httpOnOff(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	taskidx_str := r.URL.Query().Get("taskidx")
-	taskidx, err := strconv.Atoi(taskidx_str)
-	if err != nil {
-		slog.Errorf("error converting taskidx string %s to int", taskidx_str)
-		http.Error(w, "taskidx not found", http.StatusNotFound)
-		return
-	}
-	err = sequenceOnOff(taskidx, template_data.Mess)
+	httpParseTaskRunCmd(r, template_data)
+	err := sequenceOnOff(template_data.task_idx, template_data.Mess)
 	if err != nil {
 		http.Error(w, "TasksSequence not found", http.StatusNotFound)
 	}
 }
 
 func httpRestart(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	task_str := r.URL.Query().Get("task")
-	run_str := r.URL.Query().Get("run")
-	cmd_str := r.URL.Query().Get("cmd")
-	task, err := strconv.Atoi(task_str)
-	if err != nil {
-		slog.Errorf("error converting task string %s to int", task_str)
-		return
+	httpParseTaskRunCmd(r, template_data)
+	var t *TasksSequence
+	t = nil
+	if template_data.task_idx != -1 {
+		t = template_data.Mess.Tasks[template_data.task_idx]
 	}
-	run, err := strconv.Atoi(run_str)
-	if err != nil {
-		slog.Errorf("error converting run string %s to int", run_str)
-		return
+	var rn *TasksSequenceRun
+	rn = nil
+	if t != nil && template_data.run_idx != -1 {
+		rn = t.History[template_data.run_idx]
 	}
-	cmd, err := strconv.Atoi(cmd_str)
-	if err != nil {
-		slog.Errorf("error converting cmd string %s to int", cmd_str)
-		return
+	var c *TaskRun
+	c = nil
+	if rn != nil && template_data.cmd_idx != -1 {
+		c = rn.Details[template_data.cmd_idx]
 	}
-
-	t := template_data.Mess.Tasks[task]
-	rn := t.History[run]
-	c := rn.Details[cmd]
 	if rn != nil && c != nil {
 		restartTaskRun(t, c)
 	} else if rn != nil {
@@ -439,4 +423,31 @@ func httpRestart(w http.ResponseWriter, r *http.Request, template_data *HTMLTemp
 	} else {
 		http.Error(w, "TaskSequenceRun or TaskRun not found", http.StatusNotFound)
 	}
+}
+
+func httpParseTaskRunCmd(r *http.Request, template_data *HTMLTemplateData) {
+	task_str := r.URL.Query().Get("task")
+	task, err := strconv.Atoi(task_str)
+	if err != nil {
+		task = -1
+	} else if task < 0 || task > len(template_data.Mess.Tasks) {
+		task = -1
+	}
+	template_data.task_idx = task
+	run_str := r.URL.Query().Get("run")
+	run, err := strconv.Atoi(run_str)
+	if err != nil {
+		run = -1
+	} else if task != -1 && (run < 0 || run > len(template_data.Mess.Tasks[task].History)) {
+		run = -1
+	}
+	template_data.run_idx = run
+	cmd_str := r.URL.Query().Get("cmd")
+	cmd, err := strconv.Atoi(cmd_str)
+	if err != nil {
+		cmd = -1
+	} else if task != -1 && run != -1 && (cmd < 0 || cmd > len(template_data.Mess.Tasks[task].History[run].Details)) {
+		cmd = -1
+	}
+	template_data.cmd_idx = cmd
 }
