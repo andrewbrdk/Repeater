@@ -292,7 +292,7 @@ const webTasksList = `
                 });
         }
         function restart(task, run, cmd) {
-            fetch('/restart??task=' + task + '&run=' + run + '&cmd=' + cmd)
+            fetch('/restart?task=' + task + '&run=' + run + '&cmd=' + cmd)
                 .then(response => {
                     location.reload();
                 })
@@ -327,7 +327,7 @@ const webTasksList = `
                 });
         }
         function restart(task, run, cmd) {
-            fetch('/restart??task=' + task + '&run=' + run + '&cmd=' + cmd)
+            fetch('/restart?task=' + task + '&run=' + run + '&cmd=' + cmd)
                 .then(response => {
                     location.reload();
                 })
@@ -347,11 +347,11 @@ type HTMLTemplateData struct {
 	Mess     *AMessOfTasks
 }
 
-func (t HTMLTemplateData) HTMLListTasks() template.HTML {
+func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 	var sb strings.Builder
 	var btn_text string
 	sb.WriteString("<h1>Tasks</h1>\n")
-	for i, tseq := range t.Mess.Tasks {
+	for i, tseq := range td.Mess.Tasks {
 		sb.WriteString("<div>")
 		sb.WriteString("<details open>")
 		sb.WriteString("<summary>")
@@ -365,8 +365,11 @@ func (t HTMLTemplateData) HTMLListTasks() template.HTML {
 		sb.WriteString(fmt.Sprintf("<button onclick=\"onoff( %v )\">%s</button>", i, btn_text))
 		sb.WriteString("</summary>")
 		sb.WriteString("<div style=\"overflow-x:auto;\">")
-		sb.WriteString(t.HTMLHistoryTable(i))
+		sb.WriteString(td.HTMLHistoryTable(i))
 		sb.WriteString("</div>")
+		if td.task_idx == i {
+			sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart</button>", td.task_idx, td.run_idx, td.cmd_idx))
+		}
 		sb.WriteString("</details>")
 		sb.WriteString("</div>")
 	}
