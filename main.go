@@ -22,6 +22,7 @@ import (
 const port = ":8080"
 const tasksDir = "./"
 const scanSchedule = "*/10 * * * * *"
+const HTMLTitle = "Repeater"
 
 type RunStatus int
 
@@ -254,65 +255,13 @@ func sequenceOnOff(taskidx int, tasks *AMessOfTasks) error {
 	return nil
 }
 
-/*
 const webTasksList = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tasks</title>
-</head>
-<body>
-    {{range $i, $t := .Mess.Tasks}}
-    <div>
-    <details open>
-	<summary>
-		<strong>{{.Title}}</strong>
-		<span>{{.Cron}}</span>
-    	<button onclick="onoff( {{$i}} )">{{if .OnOff}}Turn Off{{else}}Turn On{{end}}</button>
-	</summary>
-    <div style="overflow-x:auto;">
-    {{.HTMLHistoryTable $i}}
-    </div>
-    {{if .ShowRestartButton}}
-    <button onclick="restart( {{$i}}, -1, -1 )">Restart</button>
-    {{end}}
-    </details>
-    </div>
-    {{end}}
-    <script>
-        function onoff(task) {
-            fetch('/onoff?task=' + task)
-                .then(response => {
-                    location.reload();
-                })
-                .catch(error => {
-                    console.error('Error toggling state:', error);
-                });
-        }
-        function restart(task, run, cmd) {
-            fetch('/restart?task=' + task + '&run=' + run + '&cmd=' + cmd)
-                .then(response => {
-                    location.reload();
-                })
-                .catch(error => {
-                    console.error('Error restarting task:', error);
-                });
-        }
-    </script>
-</body>
-</html>
-`
-*/
-
-const webTasksList = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tasks</title>
+    <title>{{.Title}}</title>
 </head>
 <body>
     {{.HTMLListTasks}}
@@ -344,13 +293,14 @@ type HTMLTemplateData struct {
 	task_idx int
 	run_idx  int
 	cmd_idx  int
+	Title    string
 	Mess     *AMessOfTasks
 }
 
 func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 	var sb strings.Builder
 	var btn_text string
-	sb.WriteString("<h1>Tasks</h1>\n")
+	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", td.Title))
 	for i, tseq := range td.Mess.Tasks {
 		sb.WriteString("<div>")
 		sb.WriteString("<details open>")
@@ -396,7 +346,6 @@ func (s RunStatus) HTMLStatus() template.HTML {
 }
 
 func (td HTMLTemplateData) HTMLHistoryTable(task_idx int) string {
-	//todo: move to HTMLTemplateData
 	tseq := td.Mess.Tasks[task_idx]
 	var sb strings.Builder
 	sb.WriteString("<table>\n")
@@ -425,38 +374,8 @@ func (td HTMLTemplateData) HTMLHistoryTable(task_idx int) string {
 	return sb.String()
 }
 
-func (tseq TasksSequence) HTMLHistoryTable(task_idx int) template.HTML {
-	//todo: move to HTMLTemplateData
-	//tseq := t.Mess.Tasks[task_idx]
-	var sb strings.Builder
-	sb.WriteString("<table>\n")
-	for r := -1; r < len(tseq.Tasks); r++ {
-		sb.WriteString("<tr>\n")
-		for c := -1; c <= len(tseq.History); c++ {
-			if r == -1 && c == -1 {
-				sb.WriteString("<th> </th>")
-			} else if r == -1 && c < len(tseq.History) {
-				sb.WriteString(fmt.Sprintf("<th> <a href=\"/?task=%v&run=%v\">%s</a> </th>", task_idx, c, tseq.History[c].Status.HTMLStatus()))
-			} else if r == -1 && c == len(tseq.History) {
-				sb.WriteString("<th>&#9633;</th>")
-			} else if c == -1 {
-				sb.WriteString(fmt.Sprintf("<td> %s </td>", html.EscapeString(tseq.Tasks[r].Name)))
-			} else if c < len(tseq.History) {
-				sb.WriteString(fmt.Sprintf("<td> <a href=\"/?task=%v&run=%v&cmd=%v\">%s</a> </td>", task_idx, c, r, tseq.History[c].Details[r].Status.HTMLStatus()))
-			} else if c == len(tseq.History) {
-				sb.WriteString("<td>&#9633;</td>")
-			} else {
-				slog.Error("this is not supposed to happen")
-			}
-		}
-		sb.WriteString("</tr>\n")
-	}
-	sb.WriteString("</table>\n")
-	return template.HTML(sb.String())
-}
-
 func httpServer(tasks *AMessOfTasks) {
-	template_data := &HTMLTemplateData{Mess: tasks}
+	template_data := &HTMLTemplateData{Mess: tasks, Title: HTMLTitle}
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		httpListTasks(w, r, template_data)
 	})
