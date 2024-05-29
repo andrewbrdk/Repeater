@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -55,16 +56,14 @@ type TasksSequenceRun struct {
 }
 
 type TasksSequence struct {
-	File              string
-	MD5               [16]byte
-	Title             string  `json:"title"`
-	Cron              string  `json:"cron"`
-	Tasks             []*Task `json:"tasks"`
-	cronID            cron.EntryID
-	History           []*TasksSequenceRun
-	OnOff             bool
-	ShowRestartButton bool
-	RestartUUID       string
+	File    string
+	MD5     [16]byte
+	Title   string  `json:"title"`
+	Cron    string  `json:"cron"`
+	Tasks   []*Task `json:"tasks"`
+	cronID  cron.EntryID
+	History []*TasksSequenceRun
+	OnOff   bool
 }
 
 type AMessOfTasks struct {
@@ -83,19 +82,21 @@ func main() {
 }
 
 func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
+	var todelete []int
 	files := make(map[string][16]byte)
 	err := scanFiles(files)
 	if err != nil {
 		slog.Errorf("Errors while reading files")
 	}
-	for _, tseq := range tasks.Tasks {
+	for idx, tseq := range tasks.Tasks {
 		md5, haskey := files[tseq.File]
 		if !haskey {
 			slog.Infof("deleting %s", tseq.Title)
-			//err := delete(tseq)
+			todelete = append(todelete, idx)
+			//err := deleteSequence(tseq)
 		} else if md5 != tseq.MD5 {
 			slog.Infof("file %s has changed, reloading", tseq.File)
-			//err := reload(tseq.File)
+			//err := reloadFile(tseq.File)
 			delete(files, tseq.File)
 		} else if md5 == tseq.MD5 {
 			slog.Infof("file %s has not changed, skipping", tseq.File)
@@ -104,6 +105,16 @@ func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
 			panic("This is not supposed to happen")
 		}
 	}
+	//todo: simplify removing
+	sort.Sort(sort.Reverse(sort.IntSlice(todelete)))
+	last_idx := len(tasks.Tasks) - 1
+	for _, task_idx := range todelete {
+		c.Remove(tasks.Tasks[task_idx].cronID)
+		tasks.Tasks[task_idx] = tasks.Tasks[last_idx]
+		last_idx = last_idx - 1
+	}
+	tasks.Tasks = tasks.Tasks[:last_idx]
+	//
 	for f := range files {
 		slog.Infof("loading %s", f)
 		tseq, _ := processTasksFile(f)
