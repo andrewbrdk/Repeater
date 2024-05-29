@@ -104,15 +104,20 @@ func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
 		}
 	}
 	//todo: simplify removing
-	sort.Sort(sort.Reverse(sort.IntSlice(todelete)))
-	last_idx := len(tasks.Tasks) - 1
-	for _, task_idx := range todelete {
-		c.Remove(tasks.Tasks[task_idx].cronID)
-		tasks.Tasks[task_idx] = tasks.Tasks[last_idx]
-		last_idx = last_idx - 1
+	if len(todelete) > 0 {
+		sort.Sort(sort.Reverse(sort.IntSlice(todelete)))
+		last_idx := len(tasks.Tasks) - 1
+		for _, task_idx := range todelete {
+			c.Remove(tasks.Tasks[task_idx].cronID)
+			tasks.Tasks[task_idx] = tasks.Tasks[last_idx]
+			last_idx = last_idx - 1
+		}
+		if last_idx >= 0 {
+			tasks.Tasks = tasks.Tasks[:last_idx]
+		} else {
+			tasks.Tasks = nil
+		}
 	}
-	tasks.Tasks = tasks.Tasks[:last_idx]
-	//
 	for f := range files {
 		slog.Infof("loading %s", f)
 		tseq, _ := processTasksFile(f)
