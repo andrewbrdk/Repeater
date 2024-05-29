@@ -91,13 +91,11 @@ func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
 	for idx, tseq := range tasks.Tasks {
 		md5, haskey := files[tseq.File]
 		if !haskey {
-			slog.Infof("deleting %s", tseq.Title)
+			slog.Infof("marking %s for deletion", tseq.Title)
 			todelete = append(todelete, idx)
-			//err := deleteSequence(tseq)
 		} else if md5 != tseq.MD5 {
-			slog.Infof("file %s has changed, reloading", tseq.File)
-			//err := reloadFile(tseq.File)
-			delete(files, tseq.File)
+			slog.Infof("file %s has changed, marking for reloading", tseq.File)
+			todelete = append(todelete, idx)
 		} else if md5 == tseq.MD5 {
 			slog.Infof("file %s has not changed, skipping", tseq.File)
 			delete(files, tseq.File)
