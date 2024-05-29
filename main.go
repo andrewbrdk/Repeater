@@ -23,7 +23,7 @@ import (
 const port = ":8080"
 const tasksDir = "./"
 const scanSchedule = "*/10 * * * * *"
-const HTMLTitle = "Repeater"
+const htmlTitle = "Repeater"
 
 type RunStatus int
 
@@ -276,6 +276,25 @@ const webTasksList = `
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
+	<style>
+		body {
+			margin-left: 7%;
+			margin-right: 7%;
+		}
+        h1 {
+            text-align: center;
+        }
+		details {
+            margin-bottom: 20px;
+        }
+		summary {
+			font-size: 1.2em;
+		}
+		details a {
+			color: black;
+			text-decoration: none;
+		}
+    </style>
 </head>
 <body>
     {{.HTMLListTasks}}
@@ -389,7 +408,7 @@ func (td HTMLTemplateData) HTMLHistoryTable(task_idx int) string {
 }
 
 func httpServer(tasks *AMessOfTasks) {
-	template_data := &HTMLTemplateData{Mess: tasks, Title: HTMLTitle}
+	template_data := &HTMLTemplateData{Mess: tasks, Title: htmlTitle}
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		httpListTasks(w, r, template_data)
 	})
@@ -452,7 +471,7 @@ func httpParseTaskRunCmd(r *http.Request, template_data *HTMLTemplateData) {
 	task, err := strconv.Atoi(task_str)
 	if err != nil {
 		task = -1
-	} else if task < 0 || task > len(template_data.Mess.Tasks) {
+	} else if task < 0 || task >= len(template_data.Mess.Tasks) {
 		task = -1
 	}
 	template_data.task_idx = task
@@ -460,7 +479,7 @@ func httpParseTaskRunCmd(r *http.Request, template_data *HTMLTemplateData) {
 	run, err := strconv.Atoi(run_str)
 	if err != nil {
 		run = -1
-	} else if task != -1 && (run < 0 || run > len(template_data.Mess.Tasks[task].History)) {
+	} else if task != -1 && (run < 0 || run >= len(template_data.Mess.Tasks[task].History)) {
 		run = -1
 	}
 	template_data.run_idx = run
@@ -468,7 +487,7 @@ func httpParseTaskRunCmd(r *http.Request, template_data *HTMLTemplateData) {
 	cmd, err := strconv.Atoi(cmd_str)
 	if err != nil {
 		cmd = -1
-	} else if task != -1 && run != -1 && (cmd < 0 || cmd > len(template_data.Mess.Tasks[task].History[run].Details)) {
+	} else if task != -1 && run != -1 && (cmd < 0 || cmd >= len(template_data.Mess.Tasks[task].History[run].Details)) {
 		cmd = -1
 	}
 	template_data.cmd_idx = cmd
