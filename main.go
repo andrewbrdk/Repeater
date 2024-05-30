@@ -278,8 +278,8 @@ const webTasksList = `
     <title>{{.Title}}</title>
 	<style>
 		body {
-			margin-left: 7%;
-			margin-right: 7%;
+			margin-left: 10%;
+			margin-right: 10%;
 		}
         h1 {
             text-align: center;
@@ -289,7 +289,16 @@ const webTasksList = `
         }
 		summary {
 			font-size: 1.2em;
+			text-align: left;
+			margin-bottom: 10px;
 		}
+		summary > span {
+            float:right;
+			clear:none;
+        }
+        summary > span > button {
+            margin-left: 20px;
+        }
 		details a {
 			color: black;
 			text-decoration: none;
@@ -339,13 +348,15 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 		sb.WriteString("<details open>")
 		sb.WriteString("<summary>")
 		sb.WriteString(fmt.Sprintf("<strong>%s</strong>", tseq.Title))
-		sb.WriteString(fmt.Sprintf("<span>%s</span>", tseq.Cron))
+		sb.WriteString("<span>")
+		sb.WriteString(tseq.Cron)
 		if tseq.OnOff {
 			btn_text = "Turn Off"
 		} else {
 			btn_text = "Turn On"
 		}
 		sb.WriteString(fmt.Sprintf("<button onclick=\"onoff( %v )\">%s</button>", i, btn_text))
+		sb.WriteString("</span>")
 		sb.WriteString("</summary>")
 		sb.WriteString("<div style=\"overflow-x:auto;\">")
 		sb.WriteString(td.HTMLHistoryTable(i))
