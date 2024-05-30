@@ -299,6 +299,12 @@ const webTasksList = `
         summary > span > button {
             margin-left: 20px;
         }
+		table th:first-child, 
+		table td:first-child {
+			position: sticky;
+			left: 0;
+			background-color: white;
+		}
 		details a {
 			color: black;
 			text-decoration: none;
