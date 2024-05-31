@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gookit/slog"
+	hcron "github.com/lnquy/cron"
 	"github.com/robfig/cron/v3"
 )
 
@@ -348,6 +349,9 @@ type HTMLTemplateData struct {
 func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 	var sb strings.Builder
 	var btn_text string
+	var cron_text string
+	var err error
+	exprDesc, _ := hcron.NewDescriptor()
 	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", td.Title))
 	for i, tseq := range td.Mess.Tasks {
 		sb.WriteString("<div>")
@@ -355,7 +359,11 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 		sb.WriteString("<summary>")
 		sb.WriteString(fmt.Sprintf("<strong>%s</strong>", tseq.Title))
 		sb.WriteString("<span>")
-		sb.WriteString(tseq.Cron)
+		cron_text, err = exprDesc.ToDescription(tseq.Cron, hcron.Locale_en)
+		if err != nil {
+			cron_text = tseq.Cron
+		}
+		sb.WriteString(cron_text)
 		if tseq.OnOff {
 			btn_text = "Turn Off"
 		} else {
@@ -425,6 +433,7 @@ func (td HTMLTemplateData) HTMLHistoryTable(task_idx int) string {
 }
 
 func httpServer(tasks *AMessOfTasks) {
+	//todo: init once
 	template_data := &HTMLTemplateData{Mess: tasks, Title: htmlTitle}
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		httpListTasks(w, r, template_data)
