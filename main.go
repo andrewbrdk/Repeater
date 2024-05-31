@@ -351,7 +351,7 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 	var btn_text string
 	var cron_text string
 	var err error
-	exprDesc, _ := hcron.NewDescriptor()
+	exprDesc, _ := hcron.NewDescriptor(hcron.Use24HourTimeFormat(true))
 	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", td.Title))
 	for i, tseq := range td.Mess.Tasks {
 		sb.WriteString("<div>")
