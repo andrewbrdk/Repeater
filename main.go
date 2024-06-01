@@ -434,23 +434,23 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 			if td.run_idx != -1 {
 				run := tseq.History[td.run_idx]
 				sb.WriteString("<p>")
-				sb.WriteString(fmt.Sprintf("%s: ", run.ScheduledTime.Format(time.RFC822)))
+				sb.WriteString(fmt.Sprintf("%s: ", run.ScheduledTime.Format("02 Jan 06 15:04")))
 				sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart all</button> ", td.task_idx, td.run_idx, td.cmd_idx))
 				sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart failed & dependencies</button>", td.task_idx, td.run_idx, td.cmd_idx))
 				sb.WriteString("</p>")
 			}
 			if td.run_idx != -1 && td.cmd_idx != -1 {
 				cmd_run := tseq.History[td.run_idx].Details[td.cmd_idx]
-				//sb.WriteString(fmt.Sprintf("<p>%s</p>", cmd_run.Name))
-				sb.WriteString("<pre>")
-				sb.WriteString(fmt.Sprintf("<code>> %s </code>\n", cmd_run.RenderedCmd))
-				sb.WriteString(fmt.Sprintf("<samp>%s</samp>", cmd_run.LastOutput))
-				sb.WriteString("</pre>")
 				sb.WriteString("<p>")
+				sb.WriteString(fmt.Sprintf("%s: ", cmd_run.Name))
 				sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart task</button> ", td.task_idx, td.run_idx, td.cmd_idx))
 				//todo: define restart_with_dependencies
 				sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart task & dependencies</button>", td.task_idx, td.run_idx, td.cmd_idx))
 				sb.WriteString("</p>")
+				sb.WriteString("<pre>")
+				sb.WriteString(fmt.Sprintf("<code>> %s </code>\n", cmd_run.RenderedCmd))
+				sb.WriteString(fmt.Sprintf("<samp>%s</samp>", cmd_run.LastOutput))
+				sb.WriteString("</pre>")
 			}
 		}
 		sb.WriteString("</details>")
