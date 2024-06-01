@@ -51,6 +51,8 @@ type TaskRun struct {
 	Attempt     int
 	//todo: pass only necessary parameters to tasks
 	SequenceRun *TasksSequenceRun
+	//todo: store in db?
+	LastOutput string
 }
 
 type TasksSequenceRun struct {
@@ -249,27 +251,24 @@ func runCommand(tr *TaskRun, template_data map[string]string) error {
 		return err
 	}
 	tr.StartTime = time.Now()
+	tr.Attempt += tr.Attempt
 	tr.RenderedCmd = sb.String()
 	tr.Status = Running
 	output, err := executeCmd(tr.RenderedCmd)
+	tr.LastOutput = output
 	tr.EndTime = time.Now()
-	tr.Attempt += tr.Attempt
 	tr.Status = RunSuccess
 	if err != nil {
 		slog.Errorf("Error executing '%s'-'%s': %v\n", template_data["title"], tr.Name, err)
 		tr.Status = RunFailure
 	}
-	slog.Infof("Task '%s', command '%s', output: '%s'\n", template_data["title"], tr.Name, output)
 	return err
 }
 
 func executeCmd(command string) (string, error) {
 	cmd := exec.Command("/bin/bash", "-c", command)
 	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", err
-	}
-	return string(output), nil
+	return string(output), err
 }
 
 func restartTaskSequenceRun(tseq *TasksSequence, seqRun *TasksSequenceRun) {
@@ -405,7 +404,12 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 		sb.WriteString(td.HTMLHistoryTable(i))
 		sb.WriteString("</div>")
 		if td.task_idx == i {
-			sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart</button>", td.task_idx, td.run_idx, td.cmd_idx))
+			sb.WriteString(fmt.Sprintf("<p><button onclick=\"restart( %v, %v, %v )\">Restart</button></p>", td.task_idx, td.run_idx, td.cmd_idx))
+			if td.run_idx != -1 && td.cmd_idx != -1 {
+				sb.WriteString(fmt.Sprintf("Command: <code> %s </code>", tseq.History[td.run_idx].Details[td.cmd_idx].RenderedCmd))
+				sb.WriteString("<p>Output:</p>")
+				sb.WriteString(fmt.Sprintf("<pre><code>%s</code></pre>", tseq.History[td.run_idx].Details[td.cmd_idx].LastOutput))
+			}
 		}
 		sb.WriteString("</details>")
 		sb.WriteString("</div>")
