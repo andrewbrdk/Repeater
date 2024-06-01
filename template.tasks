@@ -1,0 +1,15 @@
+{
+    "title": "test template",
+    "cron": "*/5 * * * * *",
+    "tasks": [
+        {
+            "name": "templated",
+            "cmd": "echo --title \"{{.title}}\""
+        },
+        {
+            "name": "scheduled_dt",
+            "cmd": "python3 ./parse_scheduled_date.py --scheduled_dt {{.scheduled_dt}}"   
+        }
+    ]
+}
+

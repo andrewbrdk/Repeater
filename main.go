@@ -49,13 +49,16 @@ type TaskRun struct {
 	EndTime     time.Time
 	Status      RunStatus
 	Attempt     int
+	//todo: pass only necessary parameters to tasks
+	SequenceRun *TasksSequenceRun
 }
 
 type TasksSequenceRun struct {
-	StartTime time.Time
-	EndTime   time.Time
-	Status    RunStatus
-	Details   []*TaskRun
+	ScheduledTime time.Time
+	StartTime     time.Time
+	EndTime       time.Time
+	Status        RunStatus
+	Details       []*TaskRun
 }
 
 type TasksSequence struct {
@@ -173,31 +176,36 @@ func scheduleTasks(tseq *TasksSequence, tasks *AMessOfTasks, c *cron.Cron) {
 	tasks.Tasks = append(tasks.Tasks, tseq)
 	tseq.cronID, _ = c.AddFunc(
 		tseq.Cron,
-		func() { runScheduled(tseq) },
+		func() { runScheduled(tseq, c) },
 	)
 	slog.Infof("Added TasksSequence '%s' from file '%s'", tseq.Title, tseq.File)
 }
 
-func runScheduled(tseq *TasksSequence) {
+func runScheduled(tseq *TasksSequence, c *cron.Cron) {
+	//todo: don't pass *cron.Cron
 	if !tseq.OnOff {
 		slog.Infof("Skipping '%s'", tseq.Title)
 		return
 	}
-	run := initRun(tseq)
+	run := initRun(tseq, c)
 	runSequence(run, tseq)
-	//todo: check for error
+	//todo: check for errors
 }
 
-func initRun(tseq *TasksSequence) *TasksSequenceRun {
+func initRun(tseq *TasksSequence, c *cron.Cron) *TasksSequenceRun {
 	run := &TasksSequenceRun{
-		StartTime: time.Now(),
+		//todo: get scheduled run time for the job
+		ScheduledTime: c.Entry(tseq.cronID).Prev,
+		StartTime:     time.Now(),
 	}
-	for _, c := range tseq.Tasks {
+	for _, t := range tseq.Tasks {
 		run.Details = append(run.Details, &TaskRun{
-			Name:    c.Name,
-			Cmd:     c.Cmd,
+			Name:    t.Name,
+			Cmd:     t.Cmd,
 			Status:  NoRun,
 			Attempt: 0,
+			//todo: pass only necessary parameters to tasks
+			SequenceRun: run,
 		})
 	}
 	tseq.History = append(tseq.History, run)
@@ -207,9 +215,12 @@ func initRun(tseq *TasksSequence) *TasksSequenceRun {
 func runSequence(run *TasksSequenceRun, tseq *TasksSequence) error {
 	run.Status = Running
 	slog.Infof("Running '%s'", tseq.Title)
+	template_data := make(map[string]string)
+	template_data["title"] = tseq.Title
+	template_data["scheduled_dt"] = run.ScheduledTime.Format("2006-01-02")
 	var taskFail bool
 	for _, tr := range run.Details {
-		err := runCommand(tr, tseq.Title)
+		err := runCommand(tr, template_data)
 		if err != nil {
 			taskFail = true
 			break
@@ -224,19 +235,17 @@ func runSequence(run *TasksSequenceRun, tseq *TasksSequence) error {
 	return nil
 }
 
-func runCommand(tr *TaskRun, title string) error {
+func runCommand(tr *TaskRun, template_data map[string]string) error {
 	tmpl := texttemplate.New("tmpl")
 	tmpl, err := tmpl.Parse(tr.Cmd)
 	if err != nil {
-		slog.Errorf("Error parsing command template '%s'-'%s'-'%s': %v\n", title, tr.Name, tr.Cmd, err)
+		slog.Errorf("Error parsing command template '%s'-'%s'-'%s': %v\n", template_data["title"], tr.Name, tr.Cmd, err)
 		return err
 	}
 	sb := new(strings.Builder)
-	template_data := make(map[string]string)
-	template_data["title"] = title
 	err = tmpl.Execute(sb, template_data)
 	if err != nil {
-		slog.Errorf("Error rendering command template '%s'-'%s'-'%s': %v\n", title, tr.Name, tr.Cmd, err)
+		slog.Errorf("Error rendering command template '%s'-'%s'-'%s': %v\n", template_data["title"], tr.Name, tr.Cmd, err)
 		return err
 	}
 	tr.StartTime = time.Now()
@@ -247,10 +256,10 @@ func runCommand(tr *TaskRun, title string) error {
 	tr.Attempt += tr.Attempt
 	tr.Status = RunSuccess
 	if err != nil {
-		slog.Errorf("Error executing '%s'-'%s': %v\n", title, tr.Name, err)
+		slog.Errorf("Error executing '%s'-'%s': %v\n", template_data["title"], tr.Name, err)
 		tr.Status = RunFailure
 	}
-	slog.Infof("Task '%s', command '%s', output: '%s'\n", title, tr.Name, output)
+	slog.Infof("Task '%s', command '%s', output: '%s'\n", template_data["title"], tr.Name, output)
 	return err
 }
 
@@ -272,7 +281,10 @@ func restartTaskSequenceRun(tseq *TasksSequence, seqRun *TasksSequenceRun) {
 }
 
 func restartTaskRun(tseq *TasksSequence, taskRun *TaskRun) {
-	runCommand(taskRun, tseq.Title)
+	template_data := make(map[string]string)
+	template_data["title"] = tseq.Title
+	template_data["scheduled_dt"] = taskRun.SequenceRun.ScheduledTime.Format("2006-01-02")
+	runCommand(taskRun, template_data)
 	//todo: add error check
 }
 
