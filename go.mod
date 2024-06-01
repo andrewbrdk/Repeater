@@ -1,4 +1,4 @@
-module a_mess_of_tasks
+module repeater
 
 go 1.19
 

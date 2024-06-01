@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	texttemplate "text/template"
 	"time"
 
 	"github.com/gookit/slog"
@@ -41,12 +42,13 @@ type Task struct {
 }
 
 type TaskRun struct {
-	Name      string
-	Cmd       string
-	StartTime time.Time
-	EndTime   time.Time
-	Status    RunStatus
-	Attempt   int
+	Name        string
+	Cmd         string
+	RenderedCmd string
+	StartTime   time.Time
+	EndTime     time.Time
+	Status      RunStatus
+	Attempt     int
 }
 
 type TasksSequenceRun struct {
@@ -223,9 +225,24 @@ func runSequence(run *TasksSequenceRun, tseq *TasksSequence) error {
 }
 
 func runCommand(tr *TaskRun, title string) error {
+	tmpl := texttemplate.New("tmpl")
+	tmpl, err := tmpl.Parse(tr.Cmd)
+	if err != nil {
+		slog.Errorf("Error parsing command template '%s'-'%s'-'%s': %v\n", title, tr.Name, tr.Cmd, err)
+		return err
+	}
+	sb := new(strings.Builder)
+	template_data := make(map[string]string)
+	template_data["title"] = title
+	err = tmpl.Execute(sb, template_data)
+	if err != nil {
+		slog.Errorf("Error rendering command template '%s'-'%s'-'%s': %v\n", title, tr.Name, tr.Cmd, err)
+		return err
+	}
 	tr.StartTime = time.Now()
+	tr.RenderedCmd = sb.String()
 	tr.Status = Running
-	output, err := executeCmd(tr.Cmd)
+	output, err := executeCmd(tr.RenderedCmd)
 	tr.EndTime = time.Now()
 	tr.Attempt += tr.Attempt
 	tr.Status = RunSuccess
