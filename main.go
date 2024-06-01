@@ -298,6 +298,17 @@ func sequenceOnOff(taskidx int, tasks *AMessOfTasks) error {
 	return nil
 }
 
+func (tseq TasksSequence) CountFailed() int {
+	//todo: maintain counter?
+	f := 0
+	for _, h := range tseq.History {
+		if h.Status == RunFailure {
+			f += 1
+		}
+	}
+	return f
+}
+
 const webTasksList = `
 <!DOCTYPE html>
 <html lang="en">
@@ -338,11 +349,12 @@ const webTasksList = `
 			color: black;
 			text-decoration: none;
 		}
-		code {
+		pre {
 			background-color: #eee;
-			border-radius: 3px;
 			font-family: courier, monospace;
 			padding: 0 3px;
+			display: block;
+			font-size: 1.2em;
 		}
     </style>
 </head>
@@ -389,9 +401,18 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", td.Title))
 	for i, tseq := range td.Mess.Tasks {
 		sb.WriteString("<div>")
-		sb.WriteString("<details open>")
+		//todo: display last ten runs in summary instead of fails count
+		failed_cnt := tseq.CountFailed()
+		if failed_cnt == 0 {
+			sb.WriteString("<details>")
+		} else if failed_cnt > 0 {
+			sb.WriteString("<details open>")
+		}
 		sb.WriteString("<summary>")
 		sb.WriteString(fmt.Sprintf("<strong>%s</strong>", tseq.Title))
+		if failed_cnt > 0 {
+			sb.WriteString(fmt.Sprintf("&emsp; %v failed", failed_cnt))
+		}
 		sb.WriteString("<span>")
 		cron_text, err = exprDesc.ToDescription(tseq.Cron, hcron.Locale_en)
 		if err != nil {
@@ -413,9 +434,12 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 			sb.WriteString(fmt.Sprintf("<p><button onclick=\"restart( %v, %v, %v )\">Restart</button></p>", td.task_idx, td.run_idx, td.cmd_idx))
 			if td.run_idx != -1 && td.cmd_idx != -1 {
 				cmd_run := tseq.History[td.run_idx].Details[td.cmd_idx]
-				sb.WriteString(fmt.Sprintf("<p>%s</p>", cmd_run.Name))
-				sb.WriteString(fmt.Sprintf("<code> %s </code>", cmd_run.RenderedCmd))
-				sb.WriteString(fmt.Sprintf("<p><pre><code>%s</code></pre></p>", cmd_run.LastOutput))
+				//sb.WriteString(fmt.Sprintf("<p>%s</p>", cmd_run.Name))
+				sb.WriteString("<pre>")
+				sb.WriteString(fmt.Sprintf("<code>> %s </code>\n", cmd_run.RenderedCmd))
+				sb.WriteString(fmt.Sprintf("<samp>%s</samp>", cmd_run.LastOutput))
+				sb.WriteString("</pre>")
+				sb.WriteString(fmt.Sprintf("<p><button onclick=\"restart( %v, %v, %v )\">Restart task</button></p>", td.task_idx, td.run_idx, td.cmd_idx))
 			}
 		}
 		sb.WriteString("</details>")
