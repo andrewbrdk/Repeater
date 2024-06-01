@@ -338,6 +338,12 @@ const webTasksList = `
 			color: black;
 			text-decoration: none;
 		}
+		code {
+			background-color: #eee;
+			border-radius: 3px;
+			font-family: courier, monospace;
+			padding: 0 3px;
+		}
     </style>
 </head>
 <body>
@@ -406,9 +412,10 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 		if td.task_idx == i {
 			sb.WriteString(fmt.Sprintf("<p><button onclick=\"restart( %v, %v, %v )\">Restart</button></p>", td.task_idx, td.run_idx, td.cmd_idx))
 			if td.run_idx != -1 && td.cmd_idx != -1 {
-				sb.WriteString(fmt.Sprintf("Command: <code> %s </code>", tseq.History[td.run_idx].Details[td.cmd_idx].RenderedCmd))
-				sb.WriteString("<p>Output:</p>")
-				sb.WriteString(fmt.Sprintf("<pre><code>%s</code></pre>", tseq.History[td.run_idx].Details[td.cmd_idx].LastOutput))
+				cmd_run := tseq.History[td.run_idx].Details[td.cmd_idx]
+				sb.WriteString(fmt.Sprintf("<p>%s</p>", cmd_run.Name))
+				sb.WriteString(fmt.Sprintf("<code> %s </code>", cmd_run.RenderedCmd))
+				sb.WriteString(fmt.Sprintf("<p><pre><code>%s</code></pre></p>", cmd_run.LastOutput))
 			}
 		}
 		sb.WriteString("</details>")
