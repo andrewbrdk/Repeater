@@ -339,6 +339,9 @@ const webTasksList = `
         summary > span > button {
             margin-left: 20px;
         }
+		.history {
+			overflow-x:auto;
+		}
 		table th:first-child, 
 		table td:first-child {
 			position: sticky;
@@ -379,6 +382,11 @@ const webTasksList = `
                     console.error('Error restarting task:', error);
                 });
         }
+		document.addEventListener("DOMContentLoaded", function() {
+			for (const e of document.querySelectorAll('.history')) {
+				e.scrollLeft = e.scrollWidth;
+			}
+		});
     </script>
 </body>
 </html>
@@ -427,7 +435,7 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 		sb.WriteString(fmt.Sprintf("<button onclick=\"onoff( %v )\">%s</button>", i, btn_text))
 		sb.WriteString("</span>")
 		sb.WriteString("</summary>")
-		sb.WriteString("<div style=\"overflow-x:auto;\">")
+		sb.WriteString("<div class=\"history\">")
 		sb.WriteString(td.HTMLHistoryTable(i))
 		sb.WriteString("</div>")
 		if td.task_idx == i {
