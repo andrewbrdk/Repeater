@@ -403,9 +403,9 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 		sb.WriteString("<div>")
 		//todo: display last ten runs in summary instead of fails count
 		failed_cnt := tseq.CountFailed()
-		if failed_cnt == 0 {
+		if failed_cnt == 0 || !tseq.OnOff {
 			sb.WriteString("<details>")
-		} else if failed_cnt > 0 {
+		} else if failed_cnt > 0 && tseq.OnOff {
 			sb.WriteString("<details open>")
 		}
 		sb.WriteString("<summary>")
