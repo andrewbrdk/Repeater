@@ -324,31 +324,41 @@ const webTasksList = `
         h1 {
             text-align: center;
         }
-		details {
+		.task {
             margin-bottom: 20px;
         }
-		summary {
+		table {
+			width: 100%;
+		}
+		table th {
 			font-size: 1.2em;
 			text-align: left;
 			margin-bottom: 10px;
 		}
-		summary > span {
-            float:right;
-			clear:none;
-        }
-        summary > span > button {
+        table > th > button {
             margin-left: 20px;
         }
 		.history {
 			overflow-x:auto;
 		}
-		table th:first-child, 
-		table td:first-child {
+		th.status,
+		td.status {
+			text-align: center;
+			vertical-align: middle;
+			width: 20px;
+		}
+		th.stickleft, 
+		td.stickleft {
 			position: sticky;
 			left: 0;
 			background-color: white;
 		}
-		details a {
+		span.stickright, 
+		span.stickright {
+			float: right;
+			background-color: white;
+		}
+		table a {
 			color: black;
 			text-decoration: none;
 		}
@@ -407,38 +417,65 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 	var err error
 	exprDesc, _ := hcron.NewDescriptor(hcron.Use24HourTimeFormat(true))
 	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", td.Title))
-	for i, tseq := range td.Mess.Tasks {
-		sb.WriteString("<div>")
-		//todo: display last ten runs in summary instead of fails count
-		failed_cnt := tseq.CountFailed()
-		if failed_cnt == 0 || !tseq.OnOff {
-			sb.WriteString("<details>")
-		} else if failed_cnt > 0 && tseq.OnOff {
-			sb.WriteString("<details open>")
+	for task_idx, tseq := range td.Mess.Tasks {
+		sb.WriteString("<div class=\"task\">")
+		sb.WriteString("<div class=\"history\">")
+		sb.WriteString("<table>\n")
+		// header
+		sb.WriteString("<tr>\n")
+		sb.WriteString("<th class=\"stickleft\"> - </th>")
+		sb.WriteString(fmt.Sprintf("<th class=\"stickleft\"><strong>%s</strong></th>", tseq.Title))
+		for c := 0; c < len(tseq.History); c++ {
+			sb.WriteString(fmt.Sprintf("<th class=\"status\"> <a href=\"/?task=%v&run=%v\">%s</a> </th>", task_idx, c, tseq.History[c].Status.HTMLStatus()))
 		}
-		sb.WriteString("<summary>")
-		sb.WriteString(fmt.Sprintf("<strong>%s</strong>", tseq.Title))
-		if failed_cnt > 0 {
-			sb.WriteString(fmt.Sprintf("&emsp; %v failed", failed_cnt))
+		sb.WriteString("<th class=\"status\">&#9633;</th>")
+		// cron_text, err = exprDesc.ToDescription(tseq.Cron, hcron.Locale_en)
+		// if err != nil {
+		// 	cron_text = tseq.Cron
+		// }
+		// sb.WriteString(fmt.Sprintf("<th class=\"stickright\">%s</th>", cron_text))
+		// if tseq.OnOff {
+		// 	btn_text = "Turn Off"
+		// } else {
+		// 	btn_text = "Turn On"
+		// }
+		// sb.WriteString(fmt.Sprintf("<th class=\"stickright\"><button onclick=\"onoff( %v )\">%s</button></th>", task_idx, btn_text))
+		sb.WriteString("</tr>\n")
+		// task statuses
+		for r := 0; r < len(tseq.Tasks); r++ {
+			sb.WriteString("<tr>\n")
+			for c := -1; c <= len(tseq.History); c++ {
+				if c == -1 {
+					sb.WriteString("<td class=\"stickleft\"> </td>")
+					sb.WriteString(fmt.Sprintf("<td class=\"stickleft\"> %s </td>", html.EscapeString(tseq.Tasks[r].Name)))
+				} else if c < len(tseq.History) {
+					sb.WriteString(fmt.Sprintf("<td class=\"status\"> <a href=\"/?task=%v&run=%v&cmd=%v\">%s</a> </td>", task_idx, c, r, tseq.History[c].Details[r].Status.HTMLStatus()))
+				} else if c == len(tseq.History) {
+					sb.WriteString("<td class=\"status\">&#9633;</td>")
+					// sb.WriteString("<td class=\"stickright\"> </td>")
+					// sb.WriteString("<td class=\"stickright\"> </td>")
+				} else {
+					slog.Error("this is not supposed to happen")
+				}
+			}
+			sb.WriteString("</tr>\n")
 		}
-		sb.WriteString("<span>")
+		sb.WriteString("</table>\n")
+		sb.WriteString("<span class=\"stickright\">")
 		cron_text, err = exprDesc.ToDescription(tseq.Cron, hcron.Locale_en)
 		if err != nil {
 			cron_text = tseq.Cron
 		}
-		sb.WriteString(cron_text)
+		sb.WriteString(fmt.Sprintf("%s", cron_text))
 		if tseq.OnOff {
 			btn_text = "Turn Off"
 		} else {
 			btn_text = "Turn On"
 		}
-		sb.WriteString(fmt.Sprintf("<button onclick=\"onoff( %v )\">%s</button>", i, btn_text))
-		sb.WriteString("</span>")
-		sb.WriteString("</summary>")
-		sb.WriteString("<div class=\"history\">")
-		sb.WriteString(td.HTMLHistoryTable(i))
-		sb.WriteString("</div>")
-		if td.task_idx == i {
+		sb.WriteString(fmt.Sprintf("<button onclick=\"onoff( %v )\">%s</button>", task_idx, btn_text))
+		sb.WriteString("</span>\n")
+		sb.WriteString("</div>\n")
+		if td.task_idx == task_idx {
 			if td.run_idx != -1 {
 				run := tseq.History[td.run_idx]
 				sb.WriteString("<p>")
@@ -461,8 +498,7 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 				sb.WriteString("</pre>")
 			}
 		}
-		sb.WriteString("</details>")
-		sb.WriteString("</div>")
+		sb.WriteString("</div>\n") //task
 	}
 	return template.HTML(sb.String())
 }
