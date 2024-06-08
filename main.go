@@ -338,34 +338,40 @@ const webTasksList = `
 			margin-bottom: 10px;
 		}
         th.l1, td.l1 {
-            width: 3%;
-        }
-        th.l2, td.l2 {
-            width: 17%;
-        }
-        th.l1, th.l2, td.l1, td.l2 {
+            width: 10px;
+			min-width: 10px;
 			position: sticky;
 			left: 0;
 			background-color: white;
-		}
+        }
+        th.l2, td.l2 {
+            width: 17%;
+			min-width: 17%;
+			position: sticky;
+			left: 9px;
+			background-color: white;
+        }
         th.st, td.st {
 			vertical-align: middle;
             text-align: center;
             width: 20px;
 		}
         th.r1, td.r1 {
-            width: 10%;
+            width: 100px;
+			min-width: 100px;
             text-align: right;
-        }
-        th.r2, td.r2 {
-            width: 20%;
-            text-align: right;
-        }
-		th.r1, th.r2, td.r1, td.r2 {
 			position: sticky;
 			right: 0;
 			background-color: white;
-		}
+        }
+        th.r2, td.r2 {
+            width: 20%;
+			min-width: 20%;
+            text-align: right;
+			position: sticky;
+			right: 99px;
+			background-color: white;
+        }
 		table a {
 			color: black;
 			text-decoration: none;
