@@ -313,65 +313,65 @@ const webTasksList = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.Title}}</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>{{.Title}}</title>
 	<style>
 		body {
 			margin-left: 10%;
 			margin-right: 10%;
 		}
-        h1 {
-            text-align: center;
-        }
+		h1 {
+			text-align: center;
+		}
 		.task {
-            margin-bottom: 20px;
-            overflow-x: auto;
-        }
+			margin-bottom: 20px;
+			overflow-x: auto;
+		}
 		table {
 			width: 100%;
 		}
 		table th {
 			font-size: 1.2em;
 			font-weight: normal;
-            text-align: left;
+			text-align: left;
 			margin-bottom: 10px;
 		}
-        th.l1, td.l1 {
-            width: 10px;
-			min-width: 10px;
+		th.l1, td.l1 {
+			width: 2rem;
+			min-width: 2rem;
 			position: sticky;
 			left: 0;
 			background-color: white;
-        }
-        th.l2, td.l2 {
-            width: 17%;
-			min-width: 17%;
-			position: sticky;
-			left: 9px;
-			background-color: white;
-        }
-        th.st, td.st {
-			vertical-align: middle;
-            text-align: center;
-            width: 20px;
 		}
-        th.r1, td.r1 {
-            width: 100px;
-			min-width: 100px;
-            text-align: right;
+		th.l2, td.l2 {
+			width: 15rem;
+			min-width: 15rem;
+			position: sticky;
+			left: 2rem;
+			background-color: white;
+		}
+		th.st, td.st {
+			vertical-align: middle;
+			text-align: center;
+			width: 1.2rem;
+		}
+		th.r1, td.r1 {
+			width: 5rem;
+			min-width: 5rem;
+			text-align: right;
 			position: sticky;
 			right: 0;
 			background-color: white;
-        }
-        th.r2, td.r2 {
-            width: 20%;
-			min-width: 20%;
-            text-align: right;
+		}
+		th.r2, td.r2 {
+			width: 10rem;
+			min-width: 10rem;
+			text-align: right;
 			position: sticky;
-			right: 99px;
+			right: 5rem;
 			background-color: white;
-        }
+		}
 		table a {
 			color: black;
 			text-decoration: none;
@@ -383,35 +383,35 @@ const webTasksList = `
 			display: block;
 			font-size: 1.2em;
 		}
-    </style>
+	</style>
 </head>
 <body>
-    {{.HTMLListTasks}}
-    <script>
-        function onoff(task) {
-            fetch('/onoff?task=' + task)
-                .then(response => {
-                    location.reload();
-                })
-                .catch(error => {
-                    console.error('Error toggling state:', error);
-                });
-        }
-        function restart(task, run, cmd) {
-            fetch('/restart?task=' + task + '&run=' + run + '&cmd=' + cmd)
-                .then(response => {
-                    location.reload();
-                })
-                .catch(error => {
-                    console.error('Error restarting task:', error);
-                });
-        }
+	{{.HTMLListTasks}}
+	<script>
+		function onoff(task) {
+			fetch('/onoff?task=' + task)
+				.then(response => {
+					location.reload();
+				})
+				.catch(error => {
+					console.error('Error toggling state:', error);
+				});
+		}
+		function restart(task, run, cmd) {
+			fetch('/restart?task=' + task + '&run=' + run + '&cmd=' + cmd)
+				.then(response => {
+					location.reload();
+				})
+				.catch(error => {
+					console.error('Error restarting task:', error);
+				});
+		}
 		document.addEventListener("DOMContentLoaded", function() {
 			for (const e of document.querySelectorAll('.task')) {
 				e.scrollLeft = e.scrollWidth;
 			}
 		});
-    </script>
+	</script>
 </body>
 </html>
 `
