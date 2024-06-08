@@ -432,14 +432,14 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 	exprDesc, _ := hcron.NewDescriptor(hcron.Use24HourTimeFormat(true))
 	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", td.Title))
 	for task_idx, tseq := range td.Mess.Tasks {
-		sb.WriteString("<div class=\"task\">")
+		sb.WriteString(fmt.Sprintf("<div class=\"task\" id=\"task%v\">", task_idx))
 		sb.WriteString("<table>\n")
 		// header
 		sb.WriteString("<tr>\n")
 		sb.WriteString("<th class=\"l1\"> - </th>")
 		sb.WriteString(fmt.Sprintf("<th class=\"l2\"><strong>%s</strong></th>", tseq.Title))
 		for c := 0; c < len(tseq.History); c++ {
-			sb.WriteString(fmt.Sprintf("<th class=\"st\"> <a href=\"/?task=%v&run=%v\">%s</a> </th>", task_idx, c, tseq.History[c].Status.HTMLStatus()))
+			sb.WriteString(fmt.Sprintf("<th class=\"st\"> <a href=\"/?task=%v&run=%v#task%v\">%s</a> </th>", task_idx, c, task_idx, tseq.History[c].Status.HTMLStatus()))
 		}
 		sb.WriteString("<th class=\"st\">&#9633;</th>")
 		sb.WriteString("<th class=\"fill\"> </th>")
@@ -457,13 +457,13 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 		sb.WriteString("</tr>\n")
 		// task statuses
 		for r := 0; r < len(tseq.Tasks); r++ {
-			sb.WriteString("<tr>\n")
+			sb.WriteString("<tr class=\"tasks\">\n")
 			for c := -1; c <= len(tseq.History); c++ {
 				if c == -1 {
 					sb.WriteString("<td class=\"l1\"> </td>")
 					sb.WriteString(fmt.Sprintf("<td class=\"l2\"> %s </td>", html.EscapeString(tseq.Tasks[r].Name)))
 				} else if c < len(tseq.History) {
-					sb.WriteString(fmt.Sprintf("<td class=\"st\"> <a href=\"/?task=%v&run=%v&cmd=%v\">%s</a> </td>", task_idx, c, r, tseq.History[c].Details[r].Status.HTMLStatus()))
+					sb.WriteString(fmt.Sprintf("<td class=\"st\"> <a href=\"/?task=%v&run=%v&cmd=%v#task%v\">%s</a> </td>", task_idx, c, r, task_idx, tseq.History[c].Details[r].Status.HTMLStatus()))
 				} else if c == len(tseq.History) {
 					sb.WriteString("<td class=\"st\">&#9633;</td>")
 					sb.WriteString("<td class=\"fill\"> </td>")
