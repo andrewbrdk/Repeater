@@ -326,36 +326,44 @@ const webTasksList = `
         }
 		.task {
             margin-bottom: 20px;
+            overflow-x: auto;
         }
 		table {
 			width: 100%;
 		}
 		table th {
 			font-size: 1.2em;
-			text-align: left;
+			font-weight: normal;
+            text-align: left;
 			margin-bottom: 10px;
 		}
-        table > th > button {
-            margin-left: 20px;
+        th.l1, td.l1 {
+            width: 3%;
         }
-		.history {
-			overflow-x:auto;
-		}
-		th.status,
-		td.status {
-			text-align: center;
-			vertical-align: middle;
-			width: 20px;
-		}
-		th.stickleft, 
-		td.stickleft {
+        th.l2, td.l2 {
+            width: 17%;
+        }
+        th.l1, th.l2, td.l1, td.l2 {
 			position: sticky;
 			left: 0;
 			background-color: white;
 		}
-		span.stickright, 
-		span.stickright {
-			float: right;
+        th.st, td.st {
+			vertical-align: middle;
+            text-align: center;
+            width: 20px;
+		}
+        th.r1, td.r1 {
+            width: 10%;
+            text-align: right;
+        }
+        th.r2, td.r2 {
+            width: 20%;
+            text-align: right;
+        }
+		th.r1, th.r2, td.r1, td.r2 {
+			position: sticky;
+			right: 0;
 			background-color: white;
 		}
 		table a {
@@ -393,7 +401,7 @@ const webTasksList = `
                 });
         }
 		document.addEventListener("DOMContentLoaded", function() {
-			for (const e of document.querySelectorAll('.history')) {
+			for (const e of document.querySelectorAll('.task')) {
 				e.scrollLeft = e.scrollWidth;
 			}
 		});
@@ -419,41 +427,42 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", td.Title))
 	for task_idx, tseq := range td.Mess.Tasks {
 		sb.WriteString("<div class=\"task\">")
-		sb.WriteString("<div class=\"history\">")
 		sb.WriteString("<table>\n")
 		// header
 		sb.WriteString("<tr>\n")
-		sb.WriteString("<th class=\"stickleft\"> - </th>")
-		sb.WriteString(fmt.Sprintf("<th class=\"stickleft\"><strong>%s</strong></th>", tseq.Title))
+		sb.WriteString("<th class=\"l1\"> - </th>")
+		sb.WriteString(fmt.Sprintf("<th class=\"l2\"><strong>%s</strong></th>", tseq.Title))
 		for c := 0; c < len(tseq.History); c++ {
-			sb.WriteString(fmt.Sprintf("<th class=\"status\"> <a href=\"/?task=%v&run=%v\">%s</a> </th>", task_idx, c, tseq.History[c].Status.HTMLStatus()))
+			sb.WriteString(fmt.Sprintf("<th class=\"st\"> <a href=\"/?task=%v&run=%v\">%s</a> </th>", task_idx, c, tseq.History[c].Status.HTMLStatus()))
 		}
-		sb.WriteString("<th class=\"status\">&#9633;</th>")
-		// cron_text, err = exprDesc.ToDescription(tseq.Cron, hcron.Locale_en)
-		// if err != nil {
-		// 	cron_text = tseq.Cron
-		// }
-		// sb.WriteString(fmt.Sprintf("<th class=\"stickright\">%s</th>", cron_text))
-		// if tseq.OnOff {
-		// 	btn_text = "Turn Off"
-		// } else {
-		// 	btn_text = "Turn On"
-		// }
-		// sb.WriteString(fmt.Sprintf("<th class=\"stickright\"><button onclick=\"onoff( %v )\">%s</button></th>", task_idx, btn_text))
+		sb.WriteString("<th class=\"st\">&#9633;</th>")
+		sb.WriteString("<th class=\"fill\"> </th>")
+		cron_text, err = exprDesc.ToDescription(tseq.Cron, hcron.Locale_en)
+		if err != nil {
+			cron_text = tseq.Cron
+		}
+		sb.WriteString(fmt.Sprintf("<th class=\"r2\">%s</th>", cron_text))
+		if tseq.OnOff {
+			btn_text = "Turn Off"
+		} else {
+			btn_text = "Turn On"
+		}
+		sb.WriteString(fmt.Sprintf("<th class=\"r1\"><button onclick=\"onoff( %v )\">%s</button></th>\n", task_idx, btn_text))
 		sb.WriteString("</tr>\n")
 		// task statuses
 		for r := 0; r < len(tseq.Tasks); r++ {
 			sb.WriteString("<tr>\n")
 			for c := -1; c <= len(tseq.History); c++ {
 				if c == -1 {
-					sb.WriteString("<td class=\"stickleft\"> </td>")
-					sb.WriteString(fmt.Sprintf("<td class=\"stickleft\"> %s </td>", html.EscapeString(tseq.Tasks[r].Name)))
+					sb.WriteString("<td class=\"l1\"> </td>")
+					sb.WriteString(fmt.Sprintf("<td class=\"l2\"> %s </td>", html.EscapeString(tseq.Tasks[r].Name)))
 				} else if c < len(tseq.History) {
-					sb.WriteString(fmt.Sprintf("<td class=\"status\"> <a href=\"/?task=%v&run=%v&cmd=%v\">%s</a> </td>", task_idx, c, r, tseq.History[c].Details[r].Status.HTMLStatus()))
+					sb.WriteString(fmt.Sprintf("<td class=\"st\"> <a href=\"/?task=%v&run=%v&cmd=%v\">%s</a> </td>", task_idx, c, r, tseq.History[c].Details[r].Status.HTMLStatus()))
 				} else if c == len(tseq.History) {
-					sb.WriteString("<td class=\"status\">&#9633;</td>")
-					// sb.WriteString("<td class=\"stickright\"> </td>")
-					// sb.WriteString("<td class=\"stickright\"> </td>")
+					sb.WriteString("<td class=\"st\">&#9633;</td>")
+					sb.WriteString("<td class=\"fill\"> </td>")
+					sb.WriteString("<td class=\"r2\"> </td>")
+					sb.WriteString("<td class=\"r1\"> </td>")
 				} else {
 					slog.Error("this is not supposed to happen")
 				}
@@ -461,19 +470,6 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 			sb.WriteString("</tr>\n")
 		}
 		sb.WriteString("</table>\n")
-		sb.WriteString("<span class=\"stickright\">")
-		cron_text, err = exprDesc.ToDescription(tseq.Cron, hcron.Locale_en)
-		if err != nil {
-			cron_text = tseq.Cron
-		}
-		sb.WriteString(fmt.Sprintf("%s", cron_text))
-		if tseq.OnOff {
-			btn_text = "Turn Off"
-		} else {
-			btn_text = "Turn On"
-		}
-		sb.WriteString(fmt.Sprintf("<button onclick=\"onoff( %v )\">%s</button>", task_idx, btn_text))
-		sb.WriteString("</span>\n")
 		sb.WriteString("</div>\n")
 		if td.task_idx == task_idx {
 			if td.run_idx != -1 {
