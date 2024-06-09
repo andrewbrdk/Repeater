@@ -357,6 +357,9 @@ const webTasksList = `
 			text-align: center;
 			width: 1.2rem;
 		}
+		th.sel, td.sel {
+			background-color: red;
+		}
 		th.r1, td.r1 {
 			width: 5rem;
 			min-width: 5rem;
@@ -463,7 +466,13 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 		sb.WriteString(fmt.Sprintf("<th class=\"l1\"><button id=\"showhidebtn%v\" onclick=\"showhide(%v)\">%s</button></th>", task_idx, task_idx, btn_text))
 		sb.WriteString(fmt.Sprintf("<th class=\"l2\"><strong>%s</strong></th>", tseq.Title))
 		for c := 0; c < len(tseq.History); c++ {
-			sb.WriteString(fmt.Sprintf("<th class=\"st\"> <a href=\"/?task=%v&run=%v#task%v\">%s</a> </th>", task_idx, c, task_idx, tseq.History[c].Status.HTMLStatus()))
+			if td.task_idx == task_idx && td.run_idx == c && td.cmd_idx == -1 {
+				sb.WriteString("<th class=\"st sel\">")
+			} else {
+				sb.WriteString("<th class=\"st\">")
+			}
+			sb.WriteString(fmt.Sprintf("<a href=\"/?task=%v&run=%v#task%v\">%s</a>", task_idx, c, task_idx, tseq.History[c].Status.HTMLStatus()))
+			sb.WriteString("</th>")
 		}
 		sb.WriteString("<th class=\"st\">&#9633;</th>")
 		sb.WriteString("<th class=\"fill\"> </th>")
@@ -492,7 +501,13 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 					sb.WriteString("<td class=\"l1\"> </td>")
 					sb.WriteString(fmt.Sprintf("<td class=\"l2\"> %s </td>", html.EscapeString(tseq.Tasks[r].Name)))
 				} else if c < len(tseq.History) {
-					sb.WriteString(fmt.Sprintf("<td class=\"st\"> <a href=\"/?task=%v&run=%v&cmd=%v#task%v\">%s</a> </td>", task_idx, c, r, task_idx, tseq.History[c].Details[r].Status.HTMLStatus()))
+					if td.task_idx == task_idx && td.run_idx == c && td.cmd_idx == r {
+						sb.WriteString("<td class=\"st sel\">")
+					} else {
+						sb.WriteString("<td class=\"st\">")
+					}
+					sb.WriteString(fmt.Sprintf("<a href=\"/?task=%v&run=%v&cmd=%v#task%v\">%s</a>", task_idx, c, r, task_idx, tseq.History[c].Details[r].Status.HTMLStatus()))
+					sb.WriteString("</td>")
 				} else if c == len(tseq.History) {
 					sb.WriteString("<td class=\"st\">&#9633;</td>")
 					sb.WriteString("<td class=\"fill\"> </td>")
