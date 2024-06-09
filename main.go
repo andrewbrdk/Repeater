@@ -358,7 +358,8 @@ const webTasksList = `
 			width: 1.2rem;
 		}
 		th.sel, td.sel {
-			background-color: red;
+			border-style: solid;
+			border-width: thin;
 		}
 		th.r1, td.r1 {
 			width: 5rem;
