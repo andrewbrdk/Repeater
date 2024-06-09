@@ -406,6 +406,14 @@ const webTasksList = `
 					console.error('Error restarting task:', error);
 				});
 		}
+		function showhide(cls) {
+			for (const e of document.querySelectorAll(cls)) {
+        		if ( e.style.display == 'block' )
+            		e.style.display = 'none';
+        		else
+            		e.style.display = 'block';
+			}
+		}
 		document.addEventListener("DOMContentLoaded", function() {
 			for (const e of document.querySelectorAll('.task')) {
 				e.scrollLeft = e.scrollWidth;
@@ -428,6 +436,8 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 	var sb strings.Builder
 	var btn_text string
 	var cron_text string
+	var visible bool
+	var displaystyle string
 	var err error
 	exprDesc, _ := hcron.NewDescriptor(hcron.Use24HourTimeFormat(true))
 	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", td.Title))
@@ -436,7 +446,14 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 		sb.WriteString("<table>\n")
 		// header
 		sb.WriteString("<tr>\n")
-		sb.WriteString("<th class=\"l1\"> - </th>")
+		if tseq.CountFailed() > 0 || td.task_idx == task_idx {
+			visible = true
+			btn_text = "-"
+		} else {
+			visible = false
+			btn_text = "+"
+		}
+		sb.WriteString(fmt.Sprintf("<th class=\"l1\"><span><button onclick=\"showhide( '.hist%v' )\">%s</button></span></th>", task_idx, btn_text))
 		sb.WriteString(fmt.Sprintf("<th class=\"l2\"><strong>%s</strong></th>", tseq.Title))
 		for c := 0; c < len(tseq.History); c++ {
 			sb.WriteString(fmt.Sprintf("<th class=\"st\"> <a href=\"/?task=%v&run=%v#task%v\">%s</a> </th>", task_idx, c, task_idx, tseq.History[c].Status.HTMLStatus()))
@@ -457,7 +474,12 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 		sb.WriteString("</tr>\n")
 		// task statuses
 		for r := 0; r < len(tseq.Tasks); r++ {
-			sb.WriteString("<tr class=\"tasks\">\n")
+			if visible {
+				displaystyle = "style=\"display:block;\""
+			} else {
+				displaystyle = "style=\"display:none;\""
+			}
+			sb.WriteString(fmt.Sprintf("<tr class=\"hist%v\" %s>\n", task_idx, displaystyle))
 			for c := -1; c <= len(tseq.History); c++ {
 				if c == -1 {
 					sb.WriteString("<td class=\"l1\"> </td>")
@@ -468,7 +490,7 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 					sb.WriteString("<td class=\"st\">&#9633;</td>")
 					sb.WriteString("<td class=\"fill\"> </td>")
 					sb.WriteString("<td class=\"r2\"> </td>")
-					sb.WriteString("<td class=\"r1\"> </td>")
+					sb.WriteString("<td class=\"r1\"> </td>\n")
 				} else {
 					slog.Error("this is not supposed to happen")
 				}
@@ -476,7 +498,6 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 			sb.WriteString("</tr>\n")
 		}
 		sb.WriteString("</table>\n")
-		sb.WriteString("</div>\n")
 		if td.task_idx == task_idx {
 			if td.run_idx != -1 {
 				run := tseq.History[td.run_idx]
