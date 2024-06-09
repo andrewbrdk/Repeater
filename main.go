@@ -443,7 +443,7 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 	var btn_text string
 	var cron_text string
 	var visible bool
-	var displaystyle string
+	var visibility string
 	var err error
 	exprDesc, _ := hcron.NewDescriptor(hcron.Use24HourTimeFormat(true))
 	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", td.Title))
@@ -482,11 +482,11 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 		// task statuses
 		for r := 0; r < len(tseq.Tasks); r++ {
 			if visible {
-				displaystyle = "style=\"visibility: visible;\""
+				visibility = "style=\"visibility: visible;\""
 			} else {
-				displaystyle = "style=\"visibility: collapse;\""
+				visibility = "style=\"visibility: collapse;\""
 			}
-			sb.WriteString(fmt.Sprintf("<tr class=\"hist%v\" %s>\n", task_idx, displaystyle))
+			sb.WriteString(fmt.Sprintf("<tr class=\"hist%v\" %s>\n", task_idx, visibility))
 			for c := -1; c <= len(tseq.History); c++ {
 				if c == -1 {
 					sb.WriteString("<td class=\"l1\"> </td>")
