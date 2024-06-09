@@ -407,13 +407,18 @@ const webTasksList = `
 					console.error('Error restarting task:', error);
 				});
 		}
-		function showhide(cls) {
-			for (const e of document.querySelectorAll(cls)) {
+		function showhide(task) {
+			for (const e of document.querySelectorAll('.hist' + task)) {
         		if ( e.style.visibility == 'visible' )
             		e.style.visibility = 'collapse';
         		else
             		e.style.visibility = 'visible';
 			}
+			var b = document.getElementById('showhidebtn'+task);
+			if (b.innerText == '-')
+				b.innerText = '+';
+			else 
+				b.innerText = '-';
 		}
 		document.addEventListener("DOMContentLoaded", function() {
 			for (const e of document.querySelectorAll('.task')) {
@@ -455,7 +460,7 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 			visible = false
 			btn_text = "+"
 		}
-		sb.WriteString(fmt.Sprintf("<th class=\"l1\"><button onclick=\"showhide('.hist%v')\">%s</button></th>", task_idx, btn_text))
+		sb.WriteString(fmt.Sprintf("<th class=\"l1\"><button id=\"showhidebtn%v\" onclick=\"showhide(%v)\">%s</button></th>", task_idx, task_idx, btn_text))
 		sb.WriteString(fmt.Sprintf("<th class=\"l2\"><strong>%s</strong></th>", tseq.Title))
 		for c := 0; c < len(tseq.History); c++ {
 			sb.WriteString(fmt.Sprintf("<th class=\"st\"> <a href=\"/?task=%v&run=%v#task%v\">%s</a> </th>", task_idx, c, task_idx, tseq.History[c].Status.HTMLStatus()))
