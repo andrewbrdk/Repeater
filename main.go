@@ -327,6 +327,7 @@ const webTasksList = `
 		.task {
 			margin-bottom: 20px;
 			overflow-x: auto;
+			overflow-y: hidden;
 		}
 		table {
 			width: 100%;
@@ -408,10 +409,10 @@ const webTasksList = `
 		}
 		function showhide(cls) {
 			for (const e of document.querySelectorAll(cls)) {
-        		if ( e.style.display == 'block' )
-            		e.style.display = 'none';
+        		if ( e.style.visibility == 'visible' )
+            		e.style.visibility = 'collapse';
         		else
-            		e.style.display = 'block';
+            		e.style.visibility = 'visible';
 			}
 		}
 		document.addEventListener("DOMContentLoaded", function() {
@@ -442,6 +443,7 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 	exprDesc, _ := hcron.NewDescriptor(hcron.Use24HourTimeFormat(true))
 	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", td.Title))
 	for task_idx, tseq := range td.Mess.Tasks {
+		sb.WriteString("<div>\n")
 		sb.WriteString(fmt.Sprintf("<div class=\"task\" id=\"task%v\">", task_idx))
 		sb.WriteString("<table>\n")
 		// header
@@ -453,7 +455,7 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 			visible = false
 			btn_text = "+"
 		}
-		sb.WriteString(fmt.Sprintf("<th class=\"l1\"><span><button onclick=\"showhide( '.hist%v' )\">%s</button></span></th>", task_idx, btn_text))
+		sb.WriteString(fmt.Sprintf("<th class=\"l1\"><button onclick=\"showhide('.hist%v')\">%s</button></th>", task_idx, btn_text))
 		sb.WriteString(fmt.Sprintf("<th class=\"l2\"><strong>%s</strong></th>", tseq.Title))
 		for c := 0; c < len(tseq.History); c++ {
 			sb.WriteString(fmt.Sprintf("<th class=\"st\"> <a href=\"/?task=%v&run=%v#task%v\">%s</a> </th>", task_idx, c, task_idx, tseq.History[c].Status.HTMLStatus()))
@@ -475,9 +477,9 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 		// task statuses
 		for r := 0; r < len(tseq.Tasks); r++ {
 			if visible {
-				displaystyle = "style=\"display:block;\""
+				displaystyle = "style=\"visibility: visible;\""
 			} else {
-				displaystyle = "style=\"display:none;\""
+				displaystyle = "style=\"visibility: collapse;\""
 			}
 			sb.WriteString(fmt.Sprintf("<tr class=\"hist%v\" %s>\n", task_idx, displaystyle))
 			for c := -1; c <= len(tseq.History); c++ {
@@ -498,6 +500,7 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 			sb.WriteString("</tr>\n")
 		}
 		sb.WriteString("</table>\n")
+		sb.WriteString("</div>\n")
 		if td.task_idx == task_idx {
 			if td.run_idx != -1 {
 				run := tseq.History[td.run_idx]
@@ -521,7 +524,7 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 				sb.WriteString("</pre>")
 			}
 		}
-		sb.WriteString("</div>\n") //task
+		sb.WriteString("</div>\n")
 	}
 	return template.HTML(sb.String())
 }
