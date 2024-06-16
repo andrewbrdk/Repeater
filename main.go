@@ -324,6 +324,10 @@ const webJobsList = `
 		h1 {
 			text-align: center;
 		}
+		h1 a {
+			color: black;
+			text-decoration: none;
+		}
 		.job {
 			margin-bottom: 20px;
 			overflow-x: auto;
@@ -450,7 +454,7 @@ func (td HTMLTemplateData) HTMLListJobs() template.HTML {
 	var visibility string
 	var err error
 	exprDesc, _ := hcron.NewDescriptor(hcron.Use24HourTimeFormat(true))
-	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", td.Title))
+	sb.WriteString(fmt.Sprintf("<h1><a href=\"/\">%s</a></h1>\n", td.Title))
 	for job_idx, jb := range td.Jobs.Jobs {
 		sb.WriteString("<div>\n")
 		sb.WriteString(fmt.Sprintf("<div class=\"job\" id=\"job%v\">", job_idx))
