@@ -23,7 +23,7 @@ import (
 )
 
 const port = ":8080"
-const tasksDir = "./"
+const jobsDir = "./"
 const scanSchedule = "*/10 * * * * *"
 const htmlTitle = "Repeater"
 
@@ -50,63 +50,63 @@ type TaskRun struct {
 	Status      RunStatus
 	Attempt     int
 	//todo: pass only necessary parameters to tasks
-	SequenceRun *TasksSequenceRun
+	JobRun *JobRun
 	//todo: store in db?
 	LastOutput string
 }
 
-type TasksSequenceRun struct {
+type JobRun struct {
 	ScheduledTime time.Time
 	StartTime     time.Time
 	EndTime       time.Time
 	Status        RunStatus
-	Details       []*TaskRun
+	TasksHistory  []*TaskRun
 }
 
-type TasksSequence struct {
-	File    string
-	MD5     [16]byte
-	Title   string  `json:"title"`
-	Cron    string  `json:"cron"`
-	Tasks   []*Task `json:"tasks"`
-	cronID  cron.EntryID
-	History []*TasksSequenceRun
-	OnOff   bool
+type Job struct {
+	File       string
+	MD5        [16]byte
+	Title      string  `json:"title"`
+	Cron       string  `json:"cron"`
+	Tasks      []*Task `json:"tasks"`
+	cronID     cron.EntryID
+	RunHistory []*JobRun
+	OnOff      bool
 }
 
-type AMessOfTasks struct {
-	Tasks []*TasksSequence
+type AllJobs struct {
+	Jobs []*Job
 }
 
 func main() {
-	var tasks AMessOfTasks
+	var jobs AllJobs
 	c := cron.New(cron.WithSeconds())
 	c.AddFunc(
 		scanSchedule,
-		func() { scanAndScheduleTasks(&tasks, c) },
+		func() { scanAndScheduleJobs(&jobs, c) },
 	)
 	c.Start()
-	httpServer(&tasks)
+	httpServer(&jobs)
 }
 
-func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
+func scanAndScheduleJobs(jobs *AllJobs, c *cron.Cron) {
 	var todelete []int
 	files := make(map[string][16]byte)
 	err := scanFiles(files)
 	if err != nil {
 		slog.Errorf("Errors while reading files")
 	}
-	for idx, tseq := range tasks.Tasks {
-		md5, haskey := files[tseq.File]
+	for idx, jb := range jobs.Jobs {
+		md5, haskey := files[jb.File]
 		if !haskey {
-			slog.Infof("marking %s for deletion", tseq.Title)
+			slog.Infof("marking %s for deletion", jb.Title)
 			todelete = append(todelete, idx)
-		} else if md5 != tseq.MD5 {
-			slog.Infof("file %s has changed, marking for reloading", tseq.File)
+		} else if md5 != jb.MD5 {
+			slog.Infof("file %s has changed, marking for reloading", jb.File)
 			todelete = append(todelete, idx)
-		} else if md5 == tseq.MD5 {
-			slog.Infof("file %s has not changed, skipping", tseq.File)
-			delete(files, tseq.File)
+		} else if md5 == jb.MD5 {
+			slog.Infof("file %s has not changed, skipping", jb.File)
+			delete(files, jb.File)
 		} else {
 			panic("This is not supposed to happen")
 		}
@@ -114,28 +114,28 @@ func scanAndScheduleTasks(tasks *AMessOfTasks, c *cron.Cron) {
 	//todo: simplify removing
 	if len(todelete) > 0 {
 		sort.Sort(sort.Reverse(sort.IntSlice(todelete)))
-		last_idx := len(tasks.Tasks) - 1
-		for _, task_idx := range todelete {
-			c.Remove(tasks.Tasks[task_idx].cronID)
-			tasks.Tasks[task_idx] = tasks.Tasks[last_idx]
+		last_idx := len(jobs.Jobs) - 1
+		for _, jb_idx := range todelete {
+			c.Remove(jobs.Jobs[jb_idx].cronID)
+			jobs.Jobs[jb_idx] = jobs.Jobs[last_idx]
 			last_idx = last_idx - 1
 		}
 		if last_idx >= 0 {
-			tasks.Tasks = tasks.Tasks[:last_idx]
+			jobs.Jobs = jobs.Jobs[:last_idx]
 		} else {
-			tasks.Tasks = nil
+			jobs.Jobs = nil
 		}
 	}
 	for f := range files {
 		slog.Infof("loading %s", f)
-		tseq, _ := processTasksFile(f)
+		jb, _ := processJobFile(f)
 		//if err != nil { }
-		scheduleTasks(tseq, tasks, c)
+		scheduleJob(jb, jobs, c)
 	}
 }
 
 func scanFiles(files map[string][16]byte) error {
-	dir := tasksDir
+	dir := jobsDir
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		//todo: dont return on error,
 		//continue with other files
@@ -143,7 +143,7 @@ func scanFiles(files map[string][16]byte) error {
 			slog.Errorf("Error accessing path %s: %v\n", path, err)
 			return err
 		}
-		if !info.IsDir() && filepath.Ext(path) == ".tasks" {
+		if !info.IsDir() && filepath.Ext(path) == ".job" {
 			f, err := os.ReadFile(path)
 			if err != nil {
 				slog.Errorf("Error reading file %s: %v\n", path, err)
@@ -156,80 +156,80 @@ func scanFiles(files map[string][16]byte) error {
 	return err
 }
 
-func processTasksFile(filePath string) (*TasksSequence, error) {
-	var tseq TasksSequence
-	tseq.File = filePath
-	tseq.OnOff = true
+func processJobFile(filePath string) (*Job, error) {
+	var jb Job
+	jb.File = filePath
+	jb.OnOff = true
 	f, err := os.ReadFile(filePath)
 	if err != nil {
 		slog.Errorf("Error reading file %s: %v\n", filePath, err)
 		return nil, err
 	}
-	tseq.MD5 = md5.Sum(f)
-	err = json.Unmarshal(f, &tseq)
+	jb.MD5 = md5.Sum(f)
+	err = json.Unmarshal(f, &jb)
 	if err != nil {
 		slog.Errorf("Error parsing file %s: %v\n", filePath, err)
 		return nil, err
 	}
-	return &tseq, nil
+	return &jb, nil
 }
 
-func scheduleTasks(tseq *TasksSequence, tasks *AMessOfTasks, c *cron.Cron) {
-	tasks.Tasks = append(tasks.Tasks, tseq)
-	tseq.cronID, _ = c.AddFunc(
-		tseq.Cron,
-		func() { runScheduled(tseq, c) },
+func scheduleJob(jb *Job, jobs *AllJobs, c *cron.Cron) {
+	jobs.Jobs = append(jobs.Jobs, jb)
+	jb.cronID, _ = c.AddFunc(
+		jb.Cron,
+		func() { runScheduled(jb, c) },
 	)
-	slog.Infof("Added TasksSequence '%s' from file '%s'", tseq.Title, tseq.File)
+	slog.Infof("Added job '%s' from file '%s'", jb.Title, jb.File)
 }
 
-func runScheduled(tseq *TasksSequence, c *cron.Cron) {
+func runScheduled(jb *Job, c *cron.Cron) {
 	//todo: don't pass *cron.Cron
-	if !tseq.OnOff {
-		slog.Infof("Skipping '%s'", tseq.Title)
+	if !jb.OnOff {
+		slog.Infof("Skipping '%s'", jb.Title)
 		return
 	}
-	run := initRun(tseq, c)
-	runSequence(run, tseq)
+	run := initRun(jb, c)
+	runJob(run, jb)
 	//todo: check for errors
 }
 
-func initRun(tseq *TasksSequence, c *cron.Cron) *TasksSequenceRun {
-	run := &TasksSequenceRun{
+func initRun(jb *Job, c *cron.Cron) *JobRun {
+	run := &JobRun{
 		//todo: get scheduled run time for the job
-		ScheduledTime: c.Entry(tseq.cronID).Prev,
+		ScheduledTime: c.Entry(jb.cronID).Prev,
 		StartTime:     time.Now(),
 	}
-	for _, t := range tseq.Tasks {
-		run.Details = append(run.Details, &TaskRun{
+	for _, t := range jb.Tasks {
+		run.TasksHistory = append(run.TasksHistory, &TaskRun{
 			Name:    t.Name,
 			Cmd:     t.Cmd,
 			Status:  NoRun,
 			Attempt: 0,
 			//todo: pass only necessary parameters to tasks
-			SequenceRun: run,
+			JobRun: run,
 		})
 	}
-	tseq.History = append(tseq.History, run)
+	jb.RunHistory = append(jb.RunHistory, run)
 	return run
 }
 
-func runSequence(run *TasksSequenceRun, tseq *TasksSequence) error {
+func runJob(run *JobRun, jb *Job) error {
 	run.Status = Running
-	slog.Infof("Running '%s'", tseq.Title)
+	slog.Infof("Running '%s'", jb.Title)
 	template_data := make(map[string]string)
-	template_data["title"] = tseq.Title
+	template_data["title"] = jb.Title
 	template_data["scheduled_dt"] = run.ScheduledTime.Format("2006-01-02")
-	var taskFail bool
-	for _, tr := range run.Details {
+	var jobFail bool
+	for _, tr := range run.TasksHistory {
 		err := runCommand(tr, template_data)
 		if err != nil {
-			taskFail = true
+			jobFail = true
 			break
 		}
 	}
 	run.Status = RunSuccess
-	if taskFail {
+	if jobFail {
 		run.Status = RunFailure
 	}
 	run.EndTime = time.Now()
@@ -271,37 +271,37 @@ func executeCmd(command string) (string, error) {
 	return string(output), err
 }
 
-func restartTaskSequenceRun(tseq *TasksSequence, seqRun *TasksSequenceRun) {
-	seqRun.Status = NoRun
-	for _, r := range seqRun.Details {
-		r.Status = NoRun
+func restartJobRun(jb *Job, run *JobRun) {
+	run.Status = NoRun
+	for _, tr := range run.TasksHistory {
+		tr.Status = NoRun
 	}
-	runSequence(seqRun, tseq)
+	runJob(run, jb)
 }
 
-func restartTaskRun(tseq *TasksSequence, taskRun *TaskRun) {
+func restartTaskRun(jb *Job, taskRun *TaskRun) {
 	template_data := make(map[string]string)
-	template_data["title"] = tseq.Title
-	template_data["scheduled_dt"] = taskRun.SequenceRun.ScheduledTime.Format("2006-01-02")
+	template_data["title"] = jb.Title
+	template_data["scheduled_dt"] = taskRun.JobRun.ScheduledTime.Format("2006-01-02")
 	runCommand(taskRun, template_data)
 	//todo: add error check
 }
 
-func sequenceOnOff(taskidx int, tasks *AMessOfTasks) error {
-	if taskidx >= len(tasks.Tasks) || taskidx < 0 {
-		slog.Errorf("incorrect task index %v", taskidx)
-		return errors.New("incorrect task index")
+func jobOnOff(jobidx int, jobs *AllJobs) error {
+	if jobidx >= len(jobs.Jobs) || jobidx < 0 {
+		slog.Errorf("incorrect job index %v", jobidx)
+		return errors.New("incorrect job index")
 	}
-	ts := tasks.Tasks[taskidx]
-	ts.OnOff = !ts.OnOff
-	slog.Infof("Toggled state of %s to %v", ts.Title, ts.OnOff)
+	jb := jobs.Jobs[jobidx]
+	jb.OnOff = !jb.OnOff
+	slog.Infof("Toggled state of %s to %v", jb.Title, jb.OnOff)
 	return nil
 }
 
-func (tseq TasksSequence) CountFailed() int {
+func (jb Job) CountFailed() int {
 	//todo: maintain counter?
 	f := 0
-	for _, h := range tseq.History {
+	for _, h := range jb.RunHistory {
 		if h.Status == RunFailure {
 			f += 1
 		}
@@ -309,7 +309,7 @@ func (tseq TasksSequence) CountFailed() int {
 	return f
 }
 
-const webTasksList = `
+const webJobsList = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -324,7 +324,7 @@ const webTasksList = `
 		h1 {
 			text-align: center;
 		}
-		.task {
+		.job {
 			margin-bottom: 20px;
 			overflow-x: auto;
 			overflow-y: hidden;
@@ -391,10 +391,10 @@ const webTasksList = `
 	</style>
 </head>
 <body>
-	{{.HTMLListTasks}}
+	{{.HTMLListJobs}}
 	<script>
-		function onoff(task) {
-			fetch('/onoff?task=' + task)
+		function onoff(job) {
+			fetch('/onoff?job=' + job)
 				.then(response => {
 					location.reload();
 				})
@@ -402,30 +402,30 @@ const webTasksList = `
 					console.error('Error toggling state:', error);
 				});
 		}
-		function restart(task, run, cmd) {
-			fetch('/restart?task=' + task + '&run=' + run + '&cmd=' + cmd)
+		function restart(job, run, cmd) {
+			fetch('/restart?job=' + job + '&run=' + run + '&cmd=' + cmd)
 				.then(response => {
 					location.reload();
 				})
 				.catch(error => {
-					console.error('Error restarting task:', error);
+					console.error('Error restarting job:', error);
 				});
 		}
-		function showhide(task) {
-			for (const e of document.querySelectorAll('.hist' + task)) {
+		function showhide(job) {
+			for (const e of document.querySelectorAll('.hist' + job)) {
         		if ( e.style.visibility == 'visible' )
             		e.style.visibility = 'collapse';
         		else
             		e.style.visibility = 'visible';
 			}
-			var b = document.getElementById('showhidebtn'+task);
+			var b = document.getElementById('showhidebtn' + job);
 			if (b.innerText == '-')
 				b.innerText = '+';
 			else 
 				b.innerText = '-';
 		}
 		document.addEventListener("DOMContentLoaded", function() {
-			for (const e of document.querySelectorAll('.task')) {
+			for (const e of document.querySelectorAll('.job')) {
 				e.scrollLeft = e.scrollWidth;
 			}
 		});
@@ -435,14 +435,14 @@ const webTasksList = `
 `
 
 type HTMLTemplateData struct {
-	task_idx int
-	run_idx  int
-	cmd_idx  int
-	Title    string
-	Mess     *AMessOfTasks
+	job_idx int
+	run_idx int
+	cmd_idx int
+	Title   string
+	Jobs    *AllJobs
 }
 
-func (td HTMLTemplateData) HTMLListTasks() template.HTML {
+func (td HTMLTemplateData) HTMLListJobs() template.HTML {
 	var sb strings.Builder
 	var btn_text string
 	var cron_text string
@@ -451,65 +451,65 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 	var err error
 	exprDesc, _ := hcron.NewDescriptor(hcron.Use24HourTimeFormat(true))
 	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", td.Title))
-	for task_idx, tseq := range td.Mess.Tasks {
+	for job_idx, jb := range td.Jobs.Jobs {
 		sb.WriteString("<div>\n")
-		sb.WriteString(fmt.Sprintf("<div class=\"task\" id=\"task%v\">", task_idx))
+		sb.WriteString(fmt.Sprintf("<div class=\"job\" id=\"job%v\">", job_idx))
 		sb.WriteString("<table>\n")
 		// header
 		sb.WriteString("<tr>\n")
-		if tseq.CountFailed() > 0 || td.task_idx == task_idx {
+		if jb.CountFailed() > 0 || td.job_idx == job_idx {
 			visible = true
 			btn_text = "-"
 		} else {
 			visible = false
 			btn_text = "+"
 		}
-		sb.WriteString(fmt.Sprintf("<th class=\"l1\"><button id=\"showhidebtn%v\" onclick=\"showhide(%v)\">%s</button></th>", task_idx, task_idx, btn_text))
-		sb.WriteString(fmt.Sprintf("<th class=\"l2\"><strong>%s</strong></th>", tseq.Title))
-		for c := 0; c < len(tseq.History); c++ {
-			if td.task_idx == task_idx && td.run_idx == c && td.cmd_idx == -1 {
+		sb.WriteString(fmt.Sprintf("<th class=\"l1\"><button id=\"showhidebtn%v\" onclick=\"showhide(%v)\">%s</button></th>", job_idx, job_idx, btn_text))
+		sb.WriteString(fmt.Sprintf("<th class=\"l2\"><strong>%s</strong></th>", jb.Title))
+		for c := 0; c < len(jb.RunHistory); c++ {
+			if td.job_idx == job_idx && td.run_idx == c && td.cmd_idx == -1 {
 				sb.WriteString("<th class=\"st sel\">")
 			} else {
 				sb.WriteString("<th class=\"st\">")
 			}
-			sb.WriteString(fmt.Sprintf("<a href=\"/?task=%v&run=%v#task%v\">%s</a>", task_idx, c, task_idx, tseq.History[c].Status.HTMLStatus()))
+			sb.WriteString(fmt.Sprintf("<a href=\"/?job=%v&run=%v#job%v\">%s</a>", job_idx, c, job_idx, jb.RunHistory[c].Status.HTMLStatus()))
 			sb.WriteString("</th>")
 		}
 		sb.WriteString("<th class=\"st\">&#9633;</th>")
 		sb.WriteString("<th class=\"fill\"> </th>")
-		cron_text, err = exprDesc.ToDescription(tseq.Cron, hcron.Locale_en)
+		cron_text, err = exprDesc.ToDescription(jb.Cron, hcron.Locale_en)
 		if err != nil {
-			cron_text = tseq.Cron
+			cron_text = jb.Cron
 		}
 		sb.WriteString(fmt.Sprintf("<th class=\"r2\">%s</th>", cron_text))
-		if tseq.OnOff {
+		if jb.OnOff {
 			btn_text = "Turn Off"
 		} else {
 			btn_text = "Turn On"
 		}
-		sb.WriteString(fmt.Sprintf("<th class=\"r1\"><button onclick=\"onoff( %v )\">%s</button></th>\n", task_idx, btn_text))
+		sb.WriteString(fmt.Sprintf("<th class=\"r1\"><button onclick=\"onoff( %v )\">%s</button></th>\n", job_idx, btn_text))
 		sb.WriteString("</tr>\n")
-		// task statuses
-		for r := 0; r < len(tseq.Tasks); r++ {
+		// tasks statuses
+		for r := 0; r < len(jb.Tasks); r++ {
 			if visible {
 				visibility = "style=\"visibility: visible;\""
 			} else {
 				visibility = "style=\"visibility: collapse;\""
 			}
-			sb.WriteString(fmt.Sprintf("<tr class=\"hist%v\" %s>\n", task_idx, visibility))
-			for c := -1; c <= len(tseq.History); c++ {
+			sb.WriteString(fmt.Sprintf("<tr class=\"hist%v\" %s>\n", job_idx, visibility))
+			for c := -1; c <= len(jb.RunHistory); c++ {
 				if c == -1 {
 					sb.WriteString("<td class=\"l1\"> </td>")
-					sb.WriteString(fmt.Sprintf("<td class=\"l2\"> %s </td>", html.EscapeString(tseq.Tasks[r].Name)))
-				} else if c < len(tseq.History) {
-					if td.task_idx == task_idx && td.run_idx == c && td.cmd_idx == r {
+					sb.WriteString(fmt.Sprintf("<td class=\"l2\"> %s </td>", html.EscapeString(jb.Tasks[r].Name)))
+				} else if c < len(jb.RunHistory) {
+					if td.job_idx == job_idx && td.run_idx == c && td.cmd_idx == r {
 						sb.WriteString("<td class=\"st sel\">")
 					} else {
 						sb.WriteString("<td class=\"st\">")
 					}
-					sb.WriteString(fmt.Sprintf("<a href=\"/?task=%v&run=%v&cmd=%v#task%v\">%s</a>", task_idx, c, r, task_idx, tseq.History[c].Details[r].Status.HTMLStatus()))
+					sb.WriteString(fmt.Sprintf("<a href=\"/?job=%v&run=%v&cmd=%v#job%v\">%s</a>", job_idx, c, r, job_idx, jb.RunHistory[c].TasksHistory[r].Status.HTMLStatus()))
 					sb.WriteString("</td>")
-				} else if c == len(tseq.History) {
+				} else if c == len(jb.RunHistory) {
 					sb.WriteString("<td class=\"st\">&#9633;</td>")
 					sb.WriteString("<td class=\"fill\"> </td>")
 					sb.WriteString("<td class=\"r2\"> </td>")
@@ -522,22 +522,22 @@ func (td HTMLTemplateData) HTMLListTasks() template.HTML {
 		}
 		sb.WriteString("</table>\n")
 		sb.WriteString("</div>\n")
-		if td.task_idx == task_idx {
+		if td.job_idx == job_idx {
 			if td.run_idx != -1 {
-				run := tseq.History[td.run_idx]
+				run := jb.RunHistory[td.run_idx]
 				sb.WriteString("<p>")
 				sb.WriteString(fmt.Sprintf("%s: ", run.ScheduledTime.Format("02 Jan 06 15:04")))
-				sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart all</button> ", td.task_idx, td.run_idx, td.cmd_idx))
-				//sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart failed & dependencies</button>", td.task_idx, td.run_idx, td.cmd_idx))
+				sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart all</button> ", td.job_idx, td.run_idx, td.cmd_idx))
+				//sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart failed & dependencies</button>", td.job_idx, td.run_idx, td.cmd_idx))
 				sb.WriteString("</p>")
 			}
 			if td.run_idx != -1 && td.cmd_idx != -1 {
-				cmd_run := tseq.History[td.run_idx].Details[td.cmd_idx]
+				cmd_run := jb.RunHistory[td.run_idx].TasksHistory[td.cmd_idx]
 				sb.WriteString("<p>")
 				sb.WriteString(fmt.Sprintf("%s: ", cmd_run.Name))
-				sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart task</button> ", td.task_idx, td.run_idx, td.cmd_idx))
+				sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart task</button> ", td.job_idx, td.run_idx, td.cmd_idx))
 				//todo: define restart_with_dependencies
-				//sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart task & dependencies</button>", td.task_idx, td.run_idx, td.cmd_idx))
+				//sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart task & dependencies</button>", td.job_idx, td.run_idx, td.cmd_idx))
 				sb.WriteString("</p>")
 				sb.WriteString("<pre>")
 				sb.WriteString(fmt.Sprintf("<code>> %s </code>\n", cmd_run.RenderedCmd))
@@ -569,24 +569,24 @@ func (s RunStatus) HTMLStatus() template.HTML {
 	}
 }
 
-func (td HTMLTemplateData) HTMLHistoryTable(task_idx int) string {
-	tseq := td.Mess.Tasks[task_idx]
+func (td HTMLTemplateData) HTMLHistoryTable(job_idx int) string {
+	jb := td.Jobs.Jobs[job_idx]
 	var sb strings.Builder
 	sb.WriteString("<table>\n")
-	for r := -1; r < len(tseq.Tasks); r++ {
+	for r := -1; r < len(jb.Tasks); r++ {
 		sb.WriteString("<tr>\n")
-		for c := -1; c <= len(tseq.History); c++ {
+		for c := -1; c <= len(jb.RunHistory); c++ {
 			if r == -1 && c == -1 {
 				sb.WriteString("<th> </th>")
-			} else if r == -1 && c < len(tseq.History) {
-				sb.WriteString(fmt.Sprintf("<th> <a href=\"/?task=%v&run=%v\">%s</a> </th>", task_idx, c, tseq.History[c].Status.HTMLStatus()))
-			} else if r == -1 && c == len(tseq.History) {
+			} else if r == -1 && c < len(jb.RunHistory) {
+				sb.WriteString(fmt.Sprintf("<th> <a href=\"/?job=%v&run=%v\">%s</a> </th>", job_idx, c, jb.RunHistory[c].Status.HTMLStatus()))
+			} else if r == -1 && c == len(jb.RunHistory) {
 				sb.WriteString("<th>&#9633;</th>")
 			} else if c == -1 {
-				sb.WriteString(fmt.Sprintf("<td> %s </td>", html.EscapeString(tseq.Tasks[r].Name)))
-			} else if c < len(tseq.History) {
-				sb.WriteString(fmt.Sprintf("<td> <a href=\"/?task=%v&run=%v&cmd=%v\">%s</a> </td>", task_idx, c, r, tseq.History[c].Details[r].Status.HTMLStatus()))
-			} else if c == len(tseq.History) {
+				sb.WriteString(fmt.Sprintf("<td> %s </td>", html.EscapeString(jb.Tasks[r].Name)))
+			} else if c < len(jb.RunHistory) {
+				sb.WriteString(fmt.Sprintf("<td> <a href=\"/?job=%v&run=%v&cmd=%v\">%s</a> </td>", job_idx, c, r, jb.RunHistory[c].TasksHistory[r].Status.HTMLStatus()))
+			} else if c == len(jb.RunHistory) {
 				sb.WriteString("<td>&#9633;</td>")
 			} else {
 				slog.Error("this is not supposed to happen")
@@ -598,11 +598,11 @@ func (td HTMLTemplateData) HTMLHistoryTable(task_idx int) string {
 	return sb.String()
 }
 
-func httpServer(tasks *AMessOfTasks) {
+func httpServer(jobs *AllJobs) {
 	//todo: init once
-	template_data := &HTMLTemplateData{Mess: tasks, Title: htmlTitle}
+	template_data := &HTMLTemplateData{Jobs: jobs, Title: htmlTitle}
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		httpListTasks(w, r, template_data)
+		httpListJobs(w, r, template_data)
 	})
 	http.HandleFunc("/onoff", func(w http.ResponseWriter, r *http.Request) {
 		httpOnOff(w, r, template_data)
@@ -613,10 +613,10 @@ func httpServer(tasks *AMessOfTasks) {
 	slog.Fatal(http.ListenAndServe(port, nil))
 }
 
-func httpListTasks(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	httpParseTaskRunCmd(r, template_data)
+func httpListJobs(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
+	httpParseJobRunCmd(r, template_data)
 	tmpl := template.New("tmpl")
-	tmpl = template.Must(tmpl.Parse(webTasksList))
+	tmpl = template.Must(tmpl.Parse(webJobsList))
 	err := tmpl.Execute(w, template_data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -625,53 +625,53 @@ func httpListTasks(w http.ResponseWriter, r *http.Request, template_data *HTMLTe
 }
 
 func httpOnOff(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	httpParseTaskRunCmd(r, template_data)
-	err := sequenceOnOff(template_data.task_idx, template_data.Mess)
+	httpParseJobRunCmd(r, template_data)
+	err := jobOnOff(template_data.job_idx, template_data.Jobs)
 	if err != nil {
-		http.Error(w, "TasksSequence not found", http.StatusNotFound)
+		http.Error(w, "Job not found", http.StatusNotFound)
 	}
 }
 
 func httpRestart(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	httpParseTaskRunCmd(r, template_data)
-	var t *TasksSequence
-	t = nil
-	if template_data.task_idx != -1 {
-		t = template_data.Mess.Tasks[template_data.task_idx]
+	httpParseJobRunCmd(r, template_data)
+	var jb *Job
+	jb = nil
+	if template_data.job_idx != -1 {
+		jb = template_data.Jobs.Jobs[template_data.job_idx]
 	}
-	var rn *TasksSequenceRun
+	var rn *JobRun
 	rn = nil
-	if t != nil && template_data.run_idx != -1 {
-		rn = t.History[template_data.run_idx]
+	if jb != nil && template_data.run_idx != -1 {
+		rn = jb.RunHistory[template_data.run_idx]
 	}
 	var c *TaskRun
 	c = nil
 	if rn != nil && template_data.cmd_idx != -1 {
-		c = rn.Details[template_data.cmd_idx]
+		c = rn.TasksHistory[template_data.cmd_idx]
 	}
 	if rn != nil && c != nil {
-		restartTaskRun(t, c)
+		restartTaskRun(jb, c)
 	} else if rn != nil {
-		restartTaskSequenceRun(t, rn)
+		restartJobRun(jb, rn)
 	} else {
-		http.Error(w, "TaskSequenceRun or TaskRun not found", http.StatusNotFound)
+		http.Error(w, "JobRun or TaskRun not found", http.StatusNotFound)
 	}
 }
 
-func httpParseTaskRunCmd(r *http.Request, template_data *HTMLTemplateData) {
-	task_str := r.URL.Query().Get("task")
-	task, err := strconv.Atoi(task_str)
+func httpParseJobRunCmd(r *http.Request, template_data *HTMLTemplateData) {
+	job_str := r.URL.Query().Get("job")
+	jb, err := strconv.Atoi(job_str)
 	if err != nil {
-		task = -1
-	} else if task < 0 || task >= len(template_data.Mess.Tasks) {
-		task = -1
+		jb = -1
+	} else if jb < 0 || jb >= len(template_data.Jobs.Jobs) {
+		jb = -1
 	}
-	template_data.task_idx = task
+	template_data.job_idx = jb
 	run_str := r.URL.Query().Get("run")
 	run, err := strconv.Atoi(run_str)
 	if err != nil {
 		run = -1
-	} else if task != -1 && (run < 0 || run >= len(template_data.Mess.Tasks[task].History)) {
+	} else if jb != -1 && (run < 0 || run >= len(template_data.Jobs.Jobs[jb].RunHistory)) {
 		run = -1
 	}
 	template_data.run_idx = run
@@ -679,7 +679,7 @@ func httpParseTaskRunCmd(r *http.Request, template_data *HTMLTemplateData) {
 	cmd, err := strconv.Atoi(cmd_str)
 	if err != nil {
 		cmd = -1
-	} else if task != -1 && run != -1 && (cmd < 0 || cmd >= len(template_data.Mess.Tasks[task].History[run].Details)) {
+	} else if jb != -1 && run != -1 && (cmd < 0 || cmd >= len(template_data.Jobs.Jobs[jb].RunHistory[run].TasksHistory)) {
 		cmd = -1
 	}
 	template_data.cmd_idx = cmd
