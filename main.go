@@ -42,15 +42,14 @@ type Task struct {
 }
 
 type TaskRun struct {
-	Name        string
-	Cmd         string
-	RenderedCmd string
-	StartTime   time.Time
-	EndTime     time.Time
-	Status      RunStatus
-	Attempt     int
-	//todo: pass only necessary parameters to tasks
-	JobRun *JobRun
+	Name              string
+	Cmd               string
+	RenderedCmd       string
+	StartTime         time.Time
+	EndTime           time.Time
+	Status            RunStatus
+	Attempt           int
+	CmdTemplateParams map[string]string
 	//todo: store in db?
 	LastOutput string
 }
@@ -206,9 +205,10 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 			Cmd:     t.Cmd,
 			Status:  NoRun,
 			Attempt: 0,
-			//todo: pass only necessary parameters to tasks
-			JobRun: run,
-		})
+			CmdTemplateParams: map[string]string{
+				"title":        jb.Title,
+				"scheduled_dt": run.ScheduledTime.Format("2006-01-02"),
+			}})
 	}
 	jb.RunHistory = append(jb.RunHistory, run)
 	return run
@@ -217,12 +217,9 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 func runJob(run *JobRun, jb *Job) error {
 	run.Status = Running
 	slog.Infof("Running '%s'", jb.Title)
-	template_data := make(map[string]string)
-	template_data["title"] = jb.Title
-	template_data["scheduled_dt"] = run.ScheduledTime.Format("2006-01-02")
 	var jobFail bool
 	for _, tr := range run.TasksHistory {
-		err := runCommand(tr, template_data)
+		err := runCommand(tr)
 		if err != nil {
 			jobFail = true
 			break
@@ -237,17 +234,17 @@ func runJob(run *JobRun, jb *Job) error {
 	return nil
 }
 
-func runCommand(tr *TaskRun, template_data map[string]string) error {
+func runCommand(tr *TaskRun) error {
 	tmpl := texttemplate.New("tmpl")
 	tmpl, err := tmpl.Parse(tr.Cmd)
 	if err != nil {
-		slog.Errorf("Error parsing command template '%s'-'%s'-'%s': %v\n", template_data["title"], tr.Name, tr.Cmd, err)
+		slog.Errorf("Error parsing command template '%s'-'%s'-'%s': %v\n", tr.CmdTemplateParams["title"], tr.Name, tr.Cmd, err)
 		return err
 	}
 	sb := new(strings.Builder)
-	err = tmpl.Execute(sb, template_data)
+	err = tmpl.Execute(sb, tr.CmdTemplateParams)
 	if err != nil {
-		slog.Errorf("Error rendering command template '%s'-'%s'-'%s': %v\n", template_data["title"], tr.Name, tr.Cmd, err)
+		slog.Errorf("Error rendering command template '%s'-'%s'-'%s': %v\n", tr.CmdTemplateParams["title"], tr.Name, tr.Cmd, err)
 		return err
 	}
 	tr.StartTime = time.Now()
@@ -259,7 +256,7 @@ func runCommand(tr *TaskRun, template_data map[string]string) error {
 	tr.EndTime = time.Now()
 	tr.Status = RunSuccess
 	if err != nil {
-		slog.Errorf("Error executing '%s'-'%s': %v\n", template_data["title"], tr.Name, err)
+		slog.Errorf("Error executing '%s'-'%s': %v\n", tr.CmdTemplateParams["title"], tr.Name, err)
 		tr.Status = RunFailure
 	}
 	return err
@@ -279,11 +276,8 @@ func restartJobRun(jb *Job, run *JobRun) {
 	runJob(run, jb)
 }
 
-func restartTaskRun(jb *Job, taskRun *TaskRun) {
-	template_data := make(map[string]string)
-	template_data["title"] = jb.Title
-	template_data["scheduled_dt"] = taskRun.JobRun.ScheduledTime.Format("2006-01-02")
-	runCommand(taskRun, template_data)
+func restartTaskRun(taskRun *TaskRun) {
+	runCommand(taskRun)
 	//todo: add error check
 }
 
@@ -654,7 +648,7 @@ func httpRestart(w http.ResponseWriter, r *http.Request, template_data *HTMLTemp
 		c = rn.TasksHistory[template_data.cmd_idx]
 	}
 	if rn != nil && c != nil {
-		restartTaskRun(jb, c)
+		restartTaskRun(c)
 	} else if rn != nil {
 		restartJobRun(jb, rn)
 	} else {
