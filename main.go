@@ -358,8 +358,8 @@ const webTasksList = `
 			width: 1.2rem;
 		}
 		th.sel, td.sel {
-			border-style: solid;
-			border-width: thin;
+			border-bottom-style: solid;
+			border-width: medium;
 		}
 		th.r1, td.r1 {
 			width: 5rem;
