@@ -23,7 +23,7 @@ import (
 )
 
 const port = ":8080"
-const jobsDir = "./"
+const jobsDir = "./examples/"
 const scanSchedule = "*/10 * * * * *"
 const htmlTitle = "Repeater"
 

@@ -8,7 +8,7 @@
         },
         {
             "name": "scheduled_dt",
-            "cmd": "python3 ./parse_scheduled_date.py --scheduled_dt {{.scheduled_dt}}"   
+            "cmd": "python3 ./examples/parse_scheduled_date.py --scheduled_dt {{.scheduled_dt}}"   
         }
     ]
 }
