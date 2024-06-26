@@ -21,7 +21,19 @@ go build
 The service should be available at [http://localhost:8080](http://localhost:8080).
 
 
-### Airflow Comparison 
+[Configuration](https://github.com/andrewbrdk/Repeater/blob/main/main.go#L25):
+```go
+const port = ":8080"                   // web server port  
+const jobsDir = "./examples/"          // jobs directory
+const scanSchedule = "*/10 * * * * *"  // jobs directory rescanning schedule
+const htmlTitle = "Repeater"           // html body.h1 and head.title
+```
+
+Task `cmd` [parameters](https://github.com/andrewbrdk/Repeater/blob/main/examples/template.job):
+```
+{{.title}} - job title
+{{.scheduled_dt}} - current run scheduled date in YYYY-MM-DD
+```
 
 Repeater is inspired by [Apache Airflow](https://airflow.apache.org/). Key differences are: 
 
