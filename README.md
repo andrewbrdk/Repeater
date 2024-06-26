@@ -13,6 +13,7 @@ Run the following commands to start the app:
 ```bash
 git clone https://github.com/andrewbrdk/Repeater
 cd Repeater
+go get repeater
 go build 
 ./repeater
 ```
