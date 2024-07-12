@@ -98,13 +98,13 @@ func scanAndScheduleJobs(jobs *AllJobs, c *cron.Cron) {
 	for idx, jb := range jobs.Jobs {
 		md5, haskey := files[jb.File]
 		if !haskey {
-			slog.Infof("marking %s for deletion", jb.Title)
+			slog.Infof("Marking %s for deletion", jb.Title)
 			todelete = append(todelete, idx)
 		} else if md5 != jb.MD5 {
-			slog.Infof("file %s has changed, marking for reloading", jb.File)
+			slog.Infof("File %s has changed, marking for reloading", jb.File)
 			todelete = append(todelete, idx)
 		} else if md5 == jb.MD5 {
-			slog.Infof("file %s has not changed, skipping", jb.File)
+			slog.Infof("File %s has not changed, skipping", jb.File)
 			delete(files, jb.File)
 		} else {
 			panic("This is not supposed to happen")
@@ -126,18 +126,19 @@ func scanAndScheduleJobs(jobs *AllJobs, c *cron.Cron) {
 		}
 	}
 	for f := range files {
-		slog.Infof("loading %s", f)
-		jb, _ := processJobFile(f)
-		//if err != nil { }
-		scheduleJob(jb, jobs, c)
+		slog.Infof("Loading %s", f)
+		jb, err := processJobFile(f)
+		if jb != nil && err == nil {
+			scheduleJob(jb, jobs, c)
+		} else {
+			slog.Infof("Skipping %s", f)
+		}
 	}
 }
 
 func scanFiles(files map[string][16]byte) error {
 	dir := jobsDir
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		//todo: dont return on error,
-		//continue with other files
 		if err != nil {
 			slog.Errorf("Error accessing path %s: %v\n", path, err)
 			return err

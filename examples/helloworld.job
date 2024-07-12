@@ -1,13 +1,13 @@
 {
-    "title": "hello",
+    "title": "hello, world,
     "cron": "*/3 * * * * *",
     "tasks": [
         {
-            "name": "h",
+            "name": "hello",
             "cmd": "echo Hello"
         },
         {
-            "name": "w", 
+            "name": "world", 
             "cmd": "echo world"
         }
     ]
