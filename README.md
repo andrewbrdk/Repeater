@@ -1,6 +1,6 @@
 ### Repeater
 
-Task orchestration for data analytics
+Task scheduler for data analytics
 
 <p align="center">
     <a href="https://github.com/andrewbrdk/Repeater">
@@ -39,5 +39,5 @@ Repeater is inspired by [Apache Airflow](https://airflow.apache.org/). Key diffe
 
 * No DAGs. Only sequences of commands.
 * No operators. Only command line programs. 
-* No python code for DAGs definitions. Tasks are defined in JSON files.
+* No python code for DAGs definitions. Tasks are defined in config files.
 * No user accounts. Only a single user.

@@ -337,30 +337,30 @@ const webJobsList = `
 			text-align: left;
 			margin-bottom: 10px;
 		}
-		th.l1, td.l1 {
+		th.collapse_btn, td.collapse_btn {
 			width: 2rem;
 			min-width: 2rem;
 			position: sticky;
 			left: 0;
 			background-color: white;
 		}
-		th.l2, td.l2 {
+		th.task_names, td.task_names {
 			width: 15rem;
 			min-width: 15rem;
 			position: sticky;
 			left: 2rem;
 			background-color: white;
 		}
-		th.st, td.st {
+		th.states, td.states {
 			vertical-align: middle;
 			text-align: center;
 			width: 1.2rem;
 		}
-		th.sel, td.sel {
+		th.selected, td.selected {
 			border-bottom-style: solid;
 			border-width: medium;
 		}
-		th.r1, td.r1 {
+		th.onoff_btn, td.onoff_btn {
 			width: 5rem;
 			min-width: 5rem;
 			text-align: right;
@@ -368,7 +368,7 @@ const webJobsList = `
 			right: 0;
 			background-color: white;
 		}
-		th.r2, td.r2 {
+		th.schedule, td.schedule {
 			width: 10rem;
 			min-width: 10rem;
 			text-align: right;
@@ -463,30 +463,30 @@ func (td HTMLTemplateData) HTMLListJobs() template.HTML {
 			visible = false
 			btn_text = "+"
 		}
-		sb.WriteString(fmt.Sprintf("<th class=\"l1\"><button id=\"showhidebtn%v\" onclick=\"showhide(%v)\">%s</button></th>", job_idx, job_idx, btn_text))
-		sb.WriteString(fmt.Sprintf("<th class=\"l2\"><strong>%s</strong></th>", jb.Title))
+		sb.WriteString(fmt.Sprintf("<th class=\"collapse_btn\"><button id=\"showhidebtn%v\" onclick=\"showhide(%v)\">%s</button></th>", job_idx, job_idx, btn_text))
+		sb.WriteString(fmt.Sprintf("<th class=\"task_names\"><strong>%s</strong></th>", jb.Title))
 		for c := 0; c < len(jb.RunHistory); c++ {
 			if td.job_idx == job_idx && td.run_idx == c && td.cmd_idx == -1 {
-				sb.WriteString("<th class=\"st sel\">")
+				sb.WriteString("<th class=\"states selected\">")
 			} else {
-				sb.WriteString("<th class=\"st\">")
+				sb.WriteString("<th class=\"states\">")
 			}
 			sb.WriteString(fmt.Sprintf("<a href=\"/?job=%v&run=%v#job%v\">%s</a>", job_idx, c, job_idx, jb.RunHistory[c].Status.HTMLStatus()))
 			sb.WriteString("</th>")
 		}
-		sb.WriteString("<th class=\"st\">&#9633;</th>")
+		sb.WriteString("<th class=\"states\">&#9633;</th>")
 		sb.WriteString("<th class=\"fill\"> </th>")
 		cron_text, err = exprDesc.ToDescription(jb.Cron, hcron.Locale_en)
 		if err != nil {
 			cron_text = jb.Cron
 		}
-		sb.WriteString(fmt.Sprintf("<th class=\"r2\">%s</th>", cron_text))
+		sb.WriteString(fmt.Sprintf("<th class=\"schedule\">%s</th>", cron_text))
 		if jb.OnOff {
 			btn_text = "Turn Off"
 		} else {
 			btn_text = "Turn On"
 		}
-		sb.WriteString(fmt.Sprintf("<th class=\"r1\"><button onclick=\"onoff( %v )\">%s</button></th>\n", job_idx, btn_text))
+		sb.WriteString(fmt.Sprintf("<th class=\"onoff_btn\"><button onclick=\"onoff( %v )\">%s</button></th>\n", job_idx, btn_text))
 		sb.WriteString("</tr>\n")
 		// tasks statuses
 		for r := 0; r < len(jb.Tasks); r++ {
@@ -498,21 +498,21 @@ func (td HTMLTemplateData) HTMLListJobs() template.HTML {
 			sb.WriteString(fmt.Sprintf("<tr class=\"hist%v\" %s>\n", job_idx, visibility))
 			for c := -1; c <= len(jb.RunHistory); c++ {
 				if c == -1 {
-					sb.WriteString("<td class=\"l1\"> </td>")
-					sb.WriteString(fmt.Sprintf("<td class=\"l2\"> %s </td>", html.EscapeString(jb.Tasks[r].Name)))
+					sb.WriteString("<td class=\"collapse_btn\"> </td>")
+					sb.WriteString(fmt.Sprintf("<td class=\"task_names\"> %s </td>", html.EscapeString(jb.Tasks[r].Name)))
 				} else if c < len(jb.RunHistory) {
 					if td.job_idx == job_idx && td.run_idx == c && td.cmd_idx == r {
-						sb.WriteString("<td class=\"st sel\">")
+						sb.WriteString("<td class=\"states selected\">")
 					} else {
-						sb.WriteString("<td class=\"st\">")
+						sb.WriteString("<td class=\"states\">")
 					}
 					sb.WriteString(fmt.Sprintf("<a href=\"/?job=%v&run=%v&cmd=%v#job%v\">%s</a>", job_idx, c, r, job_idx, jb.RunHistory[c].TasksHistory[r].Status.HTMLStatus()))
 					sb.WriteString("</td>")
 				} else if c == len(jb.RunHistory) {
-					sb.WriteString("<td class=\"st\">&#9633;</td>")
+					sb.WriteString("<td class=\"states\">&#9633;</td>")
 					sb.WriteString("<td class=\"fill\"> </td>")
-					sb.WriteString("<td class=\"r2\"> </td>")
-					sb.WriteString("<td class=\"r1\"> </td>\n")
+					sb.WriteString("<td class=\"schedule\"> </td>")
+					sb.WriteString("<td class=\"onoff_btn\"> </td>\n")
 				} else {
 					slog.Error("this is not supposed to happen")
 				}
