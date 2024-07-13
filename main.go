@@ -350,6 +350,12 @@ const webJobsList = `
 			position: sticky;
 			left: 2rem;
 			background-color: white;
+			/* overflow */
+			/* todo: show full names on hover */
+			max-width: 15rem;
+ 			overflow: hidden;
+ 			text-overflow: ellipsis;
+ 			white-space: nowrap;
 		}
 		th.states, td.states {
 			vertical-align: middle;
