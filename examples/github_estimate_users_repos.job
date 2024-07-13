@@ -1,0 +1,10 @@
+{
+    "title": "github_estimate_users_repos",
+    "cron": "0 0 10 * * *",
+    "tasks": [
+        {
+            "name": "github_estimate_users_repos",
+            "cmd": "python3 ./examples/github_estimate_users_repos.py"   
+        }
+    ]
+}
