@@ -20,6 +20,11 @@ go build
 
 The service should be available at [http://localhost:8080](http://localhost:8080).
 
+To run in Docker:
+
+```bash
+docker compose up --build
+``` 
 
 [Configuration](https://github.com/andrewbrdk/Repeater/blob/main/main.go#L25):
 ```go

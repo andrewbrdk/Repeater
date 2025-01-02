@@ -1,0 +1,12 @@
+services:
+  repeater:
+    image: repeater
+    container_name: repeater_service
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./examples:/app/examples
+      #- ./examples:/app/jobs
