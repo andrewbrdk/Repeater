@@ -14,8 +14,8 @@ base_url = "https://wikimedia.org/api/rest_v1/metrics/pageviews/aggregate/{wikip
 # https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy
 headers = {'User-Agent': 'CoolBot/0.0 (https://example.org/coolbot/; coolbot@example.org)'}
 
-CREATE_PAGEVIEWS = """
-    CREATE TABLE IF NOT EXISTS pageviews (
+CREATE_WIKI_PAGEVIEWS = """
+    CREATE TABLE IF NOT EXISTS wiki_pageviews (
         dt Date,
         project String,
         views Int32
@@ -23,8 +23,8 @@ CREATE_PAGEVIEWS = """
     ORDER BY dt
 """
 
-DELETE_FROM_PAGEVIEWS = """
-    DELETE FROM pageviews
+DELETE_FROM_WIKI_PAGEVIEWS = """
+    DELETE FROM wiki_pageviews
     WHERE
         project = '{wikiproject}'
         and dt >= '{start_date}'
@@ -61,9 +61,9 @@ def main():
 
     try:
         client = clickhouse_connect.get_client(**CHCON)
-        client.command(CREATE_PAGEVIEWS)
-        client.command(DELETE_FROM_PAGEVIEWS.format(wikiproject=wikiproject, start_date=start_date, end_date=end_date))
-        client.insert(table="pageviews", data=views)
+        client.command(CREATE_WIKI_PAGEVIEWS)
+        client.command(DELETE_FROM_WIKI_PAGEVIEWS.format(wikiproject=wikiproject, start_date=start_date, end_date=end_date))
+        client.insert(table="wiki_pageviews", data=views)
     except Exception as e:
         print(f"Error writing to DB: {e}")
         sys.exit(1)
