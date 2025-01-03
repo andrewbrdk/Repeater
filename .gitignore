@@ -1,2 +1,4 @@
 repeater
 go.sum
+.pyvenv
+*.pyc
