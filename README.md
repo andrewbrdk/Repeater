@@ -8,7 +8,7 @@ Task scheduler for data analytics
     </a>
 </p>
 
-Run the following commands to start the app:
+The service should be available at [http://localhost:8080](http://localhost:8080) after the following commands:
 
 ```bash
 git clone https://github.com/andrewbrdk/Repeater
@@ -18,13 +18,15 @@ go build
 ./repeater
 ```
 
-The service should be available at [http://localhost:8080](http://localhost:8080).
-
-To run in Docker:
+Docker-compose starts Repeater, [ClickHouse](https://clickhouse.com/) and [ch-ui](https://github.com/caioricciuti/ch-ui) to run examples:
 
 ```bash
 docker compose up --build
-``` 
+```
+Repeater [http://localhost:8080](http://localhost:8080)  
+ch-ui [http://localhost:8001](http://localhost:8001)  
+ClickHouse [http://localhost:8123](http://localhost:8123) and [http://localhost:9000](http://localhost:9000).
+
 
 [Configuration](https://github.com/andrewbrdk/Repeater/blob/main/main.go#L25):
 ```go

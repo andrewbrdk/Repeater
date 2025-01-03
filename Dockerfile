@@ -5,12 +5,16 @@ RUN apk add --no-cache \
     py3-pip \
     py3-requests \
     bash \
-    git
+    git \
+    gcc \
+    libc-dev \
+    python3-dev
 
-#RUN python3 -m venv /app/venv
-#ENV PATH="/app/venv/bin:$PATH"
+RUN python3 -m venv /app/venv
+ENV PATH="/app/venv/bin:$PATH"
 #COPY ./requirements.txt /app/requirements.txt
-#RUN pip install -Ur /app/requirements.txt
+#RUN pip3 install -Ur /app/requirements.txt
+RUN pip3 install clickhouse-connect
 
 WORKDIR /app
 RUN git clone https://github.com/andrewbrdk/Repeater

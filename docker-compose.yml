@@ -1,7 +1,7 @@
 services:
   repeater:
     image: repeater
-    container_name: repeater_service
+    container_name: repeater_web
     build:
       context: ./
       dockerfile: Dockerfile
@@ -10,3 +10,30 @@ services:
     volumes:
       - ./examples:/app/examples
       #- ./examples:/app/jobs
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: repeater_clickhouse
+    ports:
+      - "8123:8123"  # HTTP interface
+      - "9000:9000"  # Native client interface
+    # volumes:
+    #   - clickhouse_repeater:/var/lib/clickhouse
+    environment:
+      CLICKHOUSE_USER: chuser
+      CLICKHOUSE_PASSWORD: password123
+      CLICKHOUSE_DB: repeater
+
+  chui:
+    image: ghcr.io/caioricciuti/ch-ui:latest
+    container_name: repeater_chui
+    restart: always
+    ports:
+      - "8001:5521"
+    environment:
+      VITE_CLICKHOUSE_URL: "http://localhost:8123"
+      VITE_CLICKHOUSE_USER: "chuser"
+      VITE_CLICKHOUSE_PASS: "password123"
+
+# volumes:
+#   clickhouse_repeater:
