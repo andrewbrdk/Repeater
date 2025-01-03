@@ -9,18 +9,18 @@ RUN apk add --no-cache \
     libc-dev \
     python3-dev
 
-WORKDIR /app
-RUN git clone https://github.com/andrewbrdk/Repeater
-
 RUN python3 -m venv /app/venv
 ENV PATH="/app/venv/bin:$PATH"
-RUN pip3 install -r ./Repeater/examples/requirements.txt
+ADD ./examples/requirements.txt /app/
+RUN pip3 install -r /app/requirements.txt
+RUN rm /app/requirements.txt
 
-RUN cp ./Repeater/main.go ./Repeater/go.mod ./
-RUN rm -r ./Repeater
+ADD main.go go.mod /app/
 RUN mkdir -p /app/examples
 #RUN mkdir -p /app/jobs
-#RUN sed -ie 's|const jobsDir = "./examples/"|const jobsDir = "./jobs/"|' ./main.go 
+#RUN sed -ie 's|const jobsDir = "./examples/"|const jobsDir = "./jobs/"|' /app/main.go 
+
+WORKDIR /app
 RUN go get repeater
 RUN go build 
 
