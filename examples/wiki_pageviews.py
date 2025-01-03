@@ -33,18 +33,22 @@ DELETE_FROM_WIKI_PAGEVIEWS = """
 
 def main():
     parser = argparse.ArgumentParser(description="Get Wikipedia pageviews")
-    parser.add_argument("--end_date", required=True, type=str, help="End date in YYYYMMDD")
-    parser.add_argument("--start_date", type=str, help="Start date in YYYYMMDD (optional). start_date=end_date-7 if not specified.")
+    parser.add_argument("--end_date", required=True, type=str, help="End date in YYYY-MM-DD")
+    parser.add_argument("--start_date", type=str, help="Start date in YYYY-MM-DD (optional). start_date=end_date-7 if not specified.")
     args = parser.parse_args()
     
-    end_date = args.end_date
-    start_date = args.start_date
-    if not start_date:
-        start_date = (datetime.strptime(end_date, "%Y%m%d") - timedelta(days=7)).strftime('%Y%m%d')
+    end_date = datetime.strptime(args.end_date, "%Y-%m-%d")
+    if args.start_date:
+        start_date = datetime.strptime(args.start_date, "%Y-%m-%d")
+    else:
+        start_date = (end_date - timedelta(days=7))
+    end_date = end_date.strftime('%Y%m%d')
+    start_date = start_date.strftime('%Y%m%d')
 
     try:
-        response = requests.get(base_url.format(wikiproject=wikiproject, start_date=start_date, end_date=end_date), 
-                                headers=headers)
+        response = requests.get(
+            base_url.format(wikiproject=wikiproject, start_date=start_date, end_date=end_date), 
+            headers=headers)
         response.raise_for_status()
         data = response.json()
     except Exception as e:

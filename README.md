@@ -23,9 +23,9 @@ Docker-compose starts Repeater, [ClickHouse](https://clickhouse.com/) and [ch-ui
 ```bash
 docker compose up --build
 ```
-Repeater [http://localhost:8080](http://localhost:8080)  
-ch-ui [http://localhost:8001](http://localhost:8001)  
-ClickHouse [http://localhost:8123](http://localhost:8123) and [http://localhost:9000](http://localhost:9000).
+Repeater: [http://localhost:8080](http://localhost:8080),  
+ch-ui: [http://localhost:8001](http://localhost:8001),  
+ClickHouse: [http://localhost:8123](http://localhost:8123) and [http://localhost:9000](http://localhost:9000).
 
 
 [Configuration](https://github.com/andrewbrdk/Repeater/blob/main/main.go#L25):
