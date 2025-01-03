@@ -15,10 +15,10 @@ services:
     image: clickhouse/clickhouse-server:latest
     container_name: repeater_clickhouse
     ports:
-      - "8123:8123"  # HTTP interface
-      - "9000:9000"  # Native client interface
-    # volumes:
-    #   - clickhouse_repeater:/var/lib/clickhouse
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_repeater:/var/lib/clickhouse
     environment:
       CLICKHOUSE_USER: chuser
       CLICKHOUSE_PASSWORD: password123
@@ -35,5 +35,5 @@ services:
       VITE_CLICKHOUSE_USER: "chuser"
       VITE_CLICKHOUSE_PASS: "password123"
 
-# volumes:
-#   clickhouse_repeater:
+volumes:
+  clickhouse_repeater:
