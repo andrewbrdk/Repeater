@@ -10,6 +10,8 @@ services:
     volumes:
       - ./examples:/app/examples
       #- ./examples:/app/jobs
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
 
   clickhouse:
     image: clickhouse/clickhouse-server:latest
@@ -19,6 +21,8 @@ services:
       - "9000:9000"
     volumes:
       - clickhouse_repeater:/var/lib/clickhouse
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     environment:
       CLICKHOUSE_USER: chuser
       CLICKHOUSE_PASSWORD: password123
@@ -34,6 +38,9 @@ services:
       VITE_CLICKHOUSE_URL: "http://localhost:8123"
       VITE_CLICKHOUSE_USER: "chuser"
       VITE_CLICKHOUSE_PASS: "password123"
+    volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
 
 volumes:
   clickhouse_repeater:
