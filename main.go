@@ -539,8 +539,8 @@ func (td HTMLTemplateData) HTMLListJobs() template.HTML {
 			if td.run_idx != -1 {
 				run := jb.RunHistory[td.run_idx]
 				sb.WriteString("<p>")
-				sb.WriteString(fmt.Sprintf("%s: ", run.ScheduledTime.Format("02 Jan 06 15:04")))
-				sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart all</button> ", td.job_idx, td.run_idx, td.cmd_idx))
+				sb.WriteString(fmt.Sprintf("%s: ", run.ScheduledTime.Format("02 Jan 06 15:04:05")))
+				sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart job</button> ", td.job_idx, td.run_idx, td.cmd_idx))
 				//sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart failed & dependencies</button>", td.job_idx, td.run_idx, td.cmd_idx))
 				sb.WriteString("</p>")
 			}
