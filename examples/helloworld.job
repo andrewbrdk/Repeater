@@ -1,15 +1,10 @@
-{
-    "title": "hello, world",
-    "cron": "*/3 * * * * *",
-    "tasks": [
-        {
-            "name": "hello",
-            "cmd": "echo Hello"
-        },
-        {
-            "name": "world", 
-            "cmd": "echo world"
-        }
-    ]
-}
+title = "hello, world"
+cron = "*/3 * * * * *"
 
+[[tasks]]
+name = "hello"
+cmd = "echo Hello"
+
+[[tasks]]
+name = "world" 
+cmd = "echo world"

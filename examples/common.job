@@ -1,39 +1,34 @@
-{
-    "title": "copy_tables",
-    "cron": "*/1 * * * * *",
-    "tasks": [
-        {
-            "name": "customer_transactions",
-            "cmd": "echo customer_transactions && (($RANDOM % 10 != 0))" 
-        },
-        {
-            "name": "sales_orders",
-            "cmd": "echo sales_orders && (($RANDOM % 10 != 0))" 
-        },
-        {
-            "name": "product_inventory",
-            "cmd": "echo product_inventory && (($RANDOM % 10 != 0))" 
-        },
-        {
-            "name": "financial_reports",
-            "cmd": "echo financial_reports && (($RANDOM % 10 != 0))"
-        },
-                {
-            "name": "marketing_campaigns",
-            "cmd": "echo marketing_campaigns && (($RANDOM % 10 != 0))"
-        },
-        {
-            "name": "employee_performance",
-            "cmd": "echo employee_performance && (($RANDOM % 10 != 0))"
-        },
-                {
-            "name": "customer_feedback",
-            "cmd": "echo customer_feedback && (($RANDOM % 10 != 0))"
-        },
-        {
-            "name": "website_traffic_logs",
-            "cmd": "echo website_traffic_logs && (($RANDOM % 10 != 0))"
-        }
-    ]
-}
+title = "copy_tables"
+cron = "*/1 * * * * *"
 
+[[tasks]]
+name = "customer_transactions"
+cmd = "echo customer_transactions && (($RANDOM % 10 != 0))" 
+
+[[tasks]]
+name = "sales_orders"
+cmd = "echo sales_orders && (($RANDOM % 10 != 0))" 
+
+[[tasks]]
+name = "product_inventory"
+cmd = "echo product_inventory && (($RANDOM % 10 != 0))" 
+
+[[tasks]]
+name = "financial_reports"
+cmd = "echo financial_reports && (($RANDOM % 10 != 0))"
+
+[[tasks]]
+name = "marketing_campaigns"
+cmd = "echo marketing_campaigns && (($RANDOM % 10 != 0))"
+
+[[tasks]]
+name = "employee_performance"
+cmd = "echo employee_performance && (($RANDOM % 10 != 0))"
+
+[[tasks]]
+name = "customer_feedback"
+cmd = "echo customer_feedback && (($RANDOM % 10 != 0))"
+
+[[tasks]]
+name = "website_traffic_logs"
+cmd = "echo website_traffic_logs && (($RANDOM % 10 != 0))"

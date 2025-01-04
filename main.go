@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/md5"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
@@ -17,6 +16,7 @@ import (
 	texttemplate "text/template"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/gookit/slog"
 	hcron "github.com/lnquy/cron"
 	"github.com/robfig/cron/v3"
@@ -37,8 +37,8 @@ const (
 )
 
 type Task struct {
-	Name string `json:"name"`
-	Cmd  string `json:"cmd"`
+	Name string `toml:"name"`
+	Cmd  string `toml:"cmd"`
 }
 
 type TaskRun struct {
@@ -65,9 +65,9 @@ type JobRun struct {
 type Job struct {
 	File       string
 	MD5        [16]byte
-	Title      string  `json:"title"`
-	Cron       string  `json:"cron"`
-	Tasks      []*Task `json:"tasks"`
+	Title      string  `toml:"title"`
+	Cron       string  `toml:"cron"`
+	Tasks      []*Task `toml:"tasks"`
 	cronID     cron.EntryID
 	RunHistory []*JobRun
 	OnOff      bool
@@ -166,7 +166,7 @@ func processJobFile(filePath string) (*Job, error) {
 		return nil, err
 	}
 	jb.MD5 = md5.Sum(f)
-	err = json.Unmarshal(f, &jb)
+	err = toml.Unmarshal(f, &jb)
 	if err != nil {
 		slog.Errorf("Error parsing file %s: %v\n", filePath, err)
 		return nil, err

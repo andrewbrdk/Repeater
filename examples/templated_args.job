@@ -1,11 +1,6 @@
-{
-    "title": "templated_args",
-    "cron": "*/5 * * * * *",
-    "tasks": [
-        {
-            "name": "parse_templated_args",
-            "cmd": "python3 ./examples/parse_templated_args.py --title \"{{.title}}\" --scheduled_dt {{.scheduled_dt}}"   
-        }
-    ]
-}
+title = "templated_args"
+cron = "*/5 * * * * *"
 
+[[tasks]]
+name = "parse_templated_args"
+cmd = "python3 ./examples/parse_templated_args.py --title \"{{.title}}\" --scheduled_dt {{.scheduled_dt}}"

@@ -1,14 +1,10 @@
-{
-    "title": "wiki",
-    "cron": "0 55 * * * *",
-    "tasks": [
-        {
-            "name": "wiki_stats",
-            "cmd": "python3 ./examples/wiki_stats.py"   
-        },
-        {
-            "name": "wiki_pageviews",
-            "cmd": "python3 ./examples/wiki_pageviews.py --end_date={{.scheduled_dt}}"   
-        }
-    ]
-}
+title = "wiki"
+cron = "0 55 * * * *"
+
+[[tasks]]
+name = "wiki_stats"
+cmd = "python3 ./examples/wiki_stats.py"   
+
+[[tasks]]
+name = "wiki_pageviews"
+cmd = "python3 ./examples/wiki_pageviews.py --end_date={{.scheduled_dt}}"   
