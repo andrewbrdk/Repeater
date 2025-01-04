@@ -89,42 +89,12 @@ func main() {
 }
 
 func scanAndScheduleJobs(jobs *AllJobs, c *cron.Cron) {
-	var todelete []int
 	files := make(map[string][16]byte)
 	err := scanFiles(files)
 	if err != nil {
 		slog.Errorf("Errors while reading files")
 	}
-	for idx, jb := range jobs.Jobs {
-		md5, haskey := files[jb.File]
-		if !haskey {
-			slog.Infof("Marking %s for deletion", jb.Title)
-			todelete = append(todelete, idx)
-		} else if md5 != jb.MD5 {
-			slog.Infof("File %s has changed, marking for reloading", jb.File)
-			todelete = append(todelete, idx)
-		} else if md5 == jb.MD5 {
-			slog.Infof("File %s has not changed, skipping", jb.File)
-			delete(files, jb.File)
-		} else {
-			panic("This is not supposed to happen")
-		}
-	}
-	//todo: simplify removing
-	if len(todelete) > 0 {
-		sort.Sort(sort.Reverse(sort.IntSlice(todelete)))
-		last_idx := len(jobs.Jobs) - 1
-		for _, jb_idx := range todelete {
-			c.Remove(jobs.Jobs[jb_idx].cronID)
-			jobs.Jobs[jb_idx] = jobs.Jobs[last_idx]
-			last_idx = last_idx - 1
-		}
-		if last_idx >= 0 {
-			jobs.Jobs = jobs.Jobs[:last_idx]
-		} else {
-			jobs.Jobs = nil
-		}
-	}
+	removeJobsWithoutFiles(files, jobs, c)
 	for f := range files {
 		slog.Infof("Loading %s", f)
 		jb, err := processJobFile(f)
@@ -134,6 +104,10 @@ func scanAndScheduleJobs(jobs *AllJobs, c *cron.Cron) {
 			slog.Infof("Skipping %s", f)
 		}
 	}
+	//todo: move to frontend
+	sort.SliceStable(jobs.Jobs, func(i, j int) bool {
+		return jobs.Jobs[i].Title < jobs.Jobs[j].Title
+	})
 }
 
 func scanFiles(files map[string][16]byte) error {
@@ -154,6 +128,40 @@ func scanFiles(files map[string][16]byte) error {
 		return nil
 	})
 	return err
+}
+
+func removeJobsWithoutFiles(files map[string][16]byte, jobs *AllJobs, c *cron.Cron) {
+	//todo: simplify removing
+	var toremove []int
+	for idx, jb := range jobs.Jobs {
+		md5, haskey := files[jb.File]
+		if !haskey {
+			slog.Infof("Marking %s for deletion", jb.Title)
+			toremove = append(toremove, idx)
+		} else if md5 != jb.MD5 {
+			slog.Infof("File %s has changed, marking for reloading", jb.File)
+			toremove = append(toremove, idx)
+		} else if md5 == jb.MD5 {
+			slog.Infof("File %s has not changed, skipping", jb.File)
+			delete(files, jb.File)
+		} else {
+			panic("This is not supposed to happen")
+		}
+	}
+	if len(toremove) > 0 {
+		sort.Sort(sort.Reverse(sort.IntSlice(toremove)))
+		last_idx := len(jobs.Jobs) - 1
+		for _, jb_idx := range toremove {
+			c.Remove(jobs.Jobs[jb_idx].cronID)
+			jobs.Jobs[jb_idx] = jobs.Jobs[last_idx]
+			last_idx = last_idx - 1
+		}
+		if last_idx >= 0 {
+			jobs.Jobs = jobs.Jobs[:last_idx]
+		} else {
+			jobs.Jobs = nil
+		}
+	}
 }
 
 func processJobFile(filePath string) (*Job, error) {
