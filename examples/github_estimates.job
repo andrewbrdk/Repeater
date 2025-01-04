@@ -1,5 +1,5 @@
 {
-    "title": "github_estimate_users_repos",
+    "title": "github_estimates",
     "cron": "0 0 10 * * *",
     "tasks": [
         {
