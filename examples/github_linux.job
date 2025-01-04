@@ -1,0 +1,14 @@
+{
+    "title": "github_linux",
+    "cron": "0 03 * * * *",
+    "tasks": [
+        {
+            "name": "github_linux_stats",
+            "cmd": "python3 ./examples/github_linux_stats.py"   
+        },
+        {
+            "name": "github_linux_commits_count",
+            "cmd": "python3 ./examples/github_linux_commits_count.py"   
+        }
+    ]
+}
