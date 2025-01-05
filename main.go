@@ -203,9 +203,16 @@ func runScheduled(jb *Job, c *cron.Cron) {
 }
 
 func initRun(jb *Job, c *cron.Cron) *JobRun {
+	//todo: don't pass *cron.Cron
+	var scheduled_time time.Time
+	if c != nil {
+		scheduled_time = c.Entry(jb.cronID).Prev
+	} else {
+		scheduled_time = time.Now()
+	}
 	run := &JobRun{
 		//todo: get scheduled run time for the job
-		ScheduledTime: c.Entry(jb.cronID).Prev,
+		ScheduledTime: scheduled_time,
 		StartTime:     time.Now(),
 	}
 	for _, t := range jb.Tasks {
@@ -301,6 +308,12 @@ func jobOnOff(jobidx int, jobs *AllJobs) error {
 	return nil
 }
 
+func runNow(jb *Job) error {
+	run := initRun(jb, nil)
+	err := runJob(run, jb)
+	return err
+}
+
 func (jb Job) CountFailed() int {
 	//todo: maintain counter?
 	f := 0
@@ -374,6 +387,13 @@ const webJobsList = `
 			border-bottom-style: solid;
 			border-width: medium;
 		}
+		th.runnow_btn, td.runnow_btn {
+			width: 5rem;
+			min-width: 5rem;
+			text-align: center;
+			right: 0;
+			background-color: white;
+		}
 		th.onoff_btn, td.onoff_btn {
 			width: 5rem;
 			min-width: 5rem;
@@ -414,6 +434,15 @@ const webJobsList = `
 				.catch(error => {
 					console.error('Error toggling state:', error);
 				});
+		}
+		function runnow(job) {
+			fetch('/runnow?job=' + job)
+				.then(response => {
+					location.reload();
+				})
+				.catch(error => {
+					console.error('Error starting job:', error);
+			});
 		}
 		function restart(job, run, cmd) {
 			fetch('/restart?job=' + job + '&run=' + run + '&cmd=' + cmd)
@@ -495,6 +524,7 @@ func (td HTMLTemplateData) HTMLListJobs() template.HTML {
 			cron_text = jb.Cron
 		}
 		sb.WriteString(fmt.Sprintf("<th class=\"schedule\">%s</th>", cron_text))
+		sb.WriteString(fmt.Sprintf("<th class=\"runnow_btn\"><button onclick=\"runnow( %v )\">Run Now</button></th>\n", job_idx))
 		if jb.OnOff {
 			btn_text = "Turn Off"
 		} else {
@@ -526,6 +556,7 @@ func (td HTMLTemplateData) HTMLListJobs() template.HTML {
 					sb.WriteString("<td class=\"states\">&#9633;</td>")
 					sb.WriteString("<td class=\"fill\"> </td>")
 					sb.WriteString("<td class=\"schedule\"> </td>")
+					sb.WriteString("<td class=\"runnow_btn\"> </td>")
 					sb.WriteString("<td class=\"onoff_btn\"> </td>\n")
 				} else {
 					slog.Error("this is not supposed to happen")
@@ -623,6 +654,9 @@ func httpServer(jobs *AllJobs) {
 	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
 		httpRestart(w, r, template_data)
 	})
+	http.HandleFunc("/runnow", func(w http.ResponseWriter, r *http.Request) {
+		httpRunNow(w, r, template_data)
+	})
 	slog.Fatal(http.ListenAndServe(port, nil))
 }
 
@@ -668,6 +702,19 @@ func httpRestart(w http.ResponseWriter, r *http.Request, template_data *HTMLTemp
 		restartJobRun(jb, rn)
 	} else {
 		http.Error(w, "JobRun or TaskRun not found", http.StatusNotFound)
+	}
+}
+
+func httpRunNow(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
+	httpParseJobRunCmd(r, template_data)
+	var jb *Job
+	jb = nil
+	if template_data.job_idx != -1 {
+		jb = template_data.Jobs.Jobs[template_data.job_idx]
+	}
+	err := runNow(jb)
+	if err != nil {
+		http.Error(w, "Job not found", http.StatusNotFound)
 	}
 }
 
