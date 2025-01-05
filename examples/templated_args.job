@@ -1,5 +1,5 @@
 title = "templated_args"
-cron = "*/5 * * * * *"
+cron = "*/15 * * * * *"
 
 [[tasks]]
 name = "parse_templated_args"

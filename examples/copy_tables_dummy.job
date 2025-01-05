@@ -1,5 +1,5 @@
-title = "copy_tables"
-cron = "*/1 * * * * *"
+title = "copy_tables_dummy"
+cron = "0 */1 * * * *"
 
 [[tasks]]
 name = "customer_transactions"
