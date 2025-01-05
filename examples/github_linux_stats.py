@@ -35,7 +35,7 @@ def main():
 
     dt = datetime.now()
     linux_stats = [(dt, data['size'], data['stargazers_count'], data['forks'])]
-    print('linux stats:')
+    print('linux stats: dt, size_kb, stars, forks')
     print(linux_stats)
 
     try:

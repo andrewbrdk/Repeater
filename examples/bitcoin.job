@@ -1,0 +1,6 @@
+title = "bitcoin"
+cron = "0 15,45 * * * *"
+
+[[tasks]]
+name = "bitcoin_exchange_rate"
+cmd = "python3 ./examples/bitcoin_exchange_rate.py"
