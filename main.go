@@ -157,7 +157,7 @@ func removeJobsWithoutFiles(files map[string][16]byte, jobs *AllJobs, c *cron.Cr
 			last_idx = last_idx - 1
 		}
 		if last_idx >= 0 {
-			jobs.Jobs = jobs.Jobs[:last_idx]
+			jobs.Jobs = jobs.Jobs[:last_idx + 1]
 		} else {
 			jobs.Jobs = nil
 		}
