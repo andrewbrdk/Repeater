@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/md5"
 	"embed"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -532,7 +533,15 @@ func httpIndex(w http.ResponseWriter, r *http.Request, template_data *HTMLTempla
 }
 
 func httpJobs(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	// return JSON of allJobs
+	// todo: control fields
+	jData, err := json.Marshal(template_data.Jobs)
+	if err != nil {
+		http.Error(w, "Job not found", http.StatusNotFound)
+		return
+	}
+	//slog.Infof(string(jData))
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jData)
 }
 
 func httpOnOff(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {

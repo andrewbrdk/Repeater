@@ -141,24 +141,28 @@
 			else 
 				b.innerText = '-';
 		}
-        const jobsData = [
-            { id: 1, name: "Alice", age: 30 },
-            { id: 2, name: "Bob", age: 25 },
-            { id: 3, name: "Charlie", age: 35 },
-        ];
         function renderJobs(jobs) {
             const alljobs = document.getElementById('alljobs');
             alljobs.innerHTML = '';
-            jobs.forEach(jb => {
+			console.log(jobs);
+            jobs['Jobs'].forEach(jb => {
                 const jbDiv = document.createElement('div');
                 jbDiv.classList.add('job');
-                jbDiv.innerHTML = "<h3>" + jb.name + "</h3>";
-                jbDiv.innerHTML += "<p> Age:" + jb.age + "</p>";
+                jbDiv.innerHTML = "<h3>" + jb.Title + "</h3>";
+                jbDiv.innerHTML += "<p> Age:" + jb.Cron + "</p>";
                 alljobs.appendChild(jbDiv);
             });
         }
         function fetchJobs() {
-            renderJobs(jobsData);
+			fetch('/jobs')
+				.then(response => {
+					return response.json();
+				}).then(data => {
+            		renderJobs(data);  // Pass the parsed data to renderJobs
+        		})
+				.catch(error => {
+					console.error('Error fetching jobs:', error);
+			});
         }
 
         fetchJobs();
