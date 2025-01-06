@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>{{.Title}}</title>
+	<style>
+		body {
+			margin-left: 10%;
+			margin-right: 10%;
+		}
+		h1 {
+			text-align: center;
+		}
+		h1 a {
+			color: black;
+			text-decoration: none;
+		}
+		.job {
+			margin-bottom: 20px;
+			overflow-x: auto;
+			overflow-y: hidden;
+		}
+		table {
+			width: 100%;
+		}
+		table th {
+			font-size: 1.2em;
+			font-weight: normal;
+			text-align: left;
+			margin-bottom: 10px;
+		}
+		th.collapse_btn, td.collapse_btn {
+			width: 2rem;
+			min-width: 2rem;
+			position: sticky;
+			left: 0;
+			background-color: white;
+		}
+		th.task_names, td.task_names {
+			width: 15rem;
+			min-width: 15rem;
+			position: sticky;
+			left: 2rem;
+			background-color: white;
+			/* overflow */
+			/* todo: show full names on hover */
+			max-width: 15rem;
+ 			overflow: hidden;
+ 			text-overflow: ellipsis;
+ 			white-space: nowrap;
+		}
+		th.states, td.states {
+			vertical-align: middle;
+			text-align: center;
+			width: 1.2rem;
+		}
+		th.selected, td.selected {
+			border-bottom-style: solid;
+			border-width: medium;
+		}
+		th.runnow_btn, td.runnow_btn {
+			width: 5rem;
+			min-width: 5rem;
+			text-align: center;
+			right: 0;
+			background-color: white;
+		}
+		th.onoff_btn, td.onoff_btn {
+			width: 5rem;
+			min-width: 5rem;
+			text-align: right;
+			position: sticky;
+			right: 0;
+			background-color: white;
+		}
+		th.schedule, td.schedule {
+			width: 10rem;
+			min-width: 10rem;
+			text-align: right;
+			position: sticky;
+			right: 5rem;
+			background-color: white;
+		}
+		table a {
+			color: black;
+			text-decoration: none;
+		}
+		pre {
+			background-color: #eee;
+			font-family: courier, monospace;
+			padding: 0 3px;
+			display: block;
+			font-size: 1.2em;
+		}
+	</style>
+</head>
+<body>
+    <h1><a href="/">td.Title</a></h1>
+    <div id="alljobs">
+        <!-- dynamic rendering -->
+    </div>
+	<script>
+		function onoff(job) {
+			fetch('/onoff?job=' + job)
+				.then(response => {
+					location.reload();
+				})
+				.catch(error => {
+					console.error('Error toggling state:', error);
+				});
+		}
+		function runnow(job) {
+			fetch('/runnow?job=' + job)
+				.then(response => {
+					location.reload();
+				})
+				.catch(error => {
+					console.error('Error starting job:', error);
+			});
+		}
+		function restart(job, run, cmd) {
+			fetch('/restart?job=' + job + '&run=' + run + '&cmd=' + cmd)
+				.then(response => {
+					location.reload();
+				})
+				.catch(error => {
+					console.error('Error restarting job:', error);
+				});
+		}
+		function showhide(job) {
+			for (const e of document.querySelectorAll('.hist' + job)) {
+        		if ( e.style.visibility == 'visible' )
+            		e.style.visibility = 'collapse';
+        		else
+            		e.style.visibility = 'visible';
+			}
+			var b = document.getElementById('showhidebtn' + job);
+			if (b.innerText == '-')
+				b.innerText = '+';
+			else 
+				b.innerText = '-';
+		}
+        const jobsData = [
+            { id: 1, name: "Alice", age: 30 },
+            { id: 2, name: "Bob", age: 25 },
+            { id: 3, name: "Charlie", age: 35 },
+        ];
+        function renderJobs(jobs) {
+            const alljobs = document.getElementById('alljobs');
+            alljobs.innerHTML = '';
+            jobs.forEach(jb => {
+                const jbDiv = document.createElement('div');
+                jbDiv.classList.add('job');
+                jbDiv.innerHTML = "<h3>" + jb.name + "</h3>";
+                jbDiv.innerHTML += "<p> Age:" + jb.age + "</p>";
+                alljobs.appendChild(jbDiv);
+            });
+        }
+        function fetchJobs() {
+            renderJobs(jobsData);
+        }
+
+        fetchJobs();
+		document.addEventListener("DOMContentLoaded", function() {
+			for (const e of document.querySelectorAll('.job')) {
+				e.scrollLeft = e.scrollWidth;
+			}
+		});
+	</script>
+</body>
+</html>
