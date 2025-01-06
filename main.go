@@ -167,7 +167,7 @@ func removeJobsWithoutFiles(files map[string][16]byte, jobs *AllJobs, c *cron.Cr
 func processJobFile(filePath string) (*Job, error) {
 	var jb Job
 	jb.File = filePath
-	jb.OnOff = true
+	jb.OnOff = false
 	f, err := os.ReadFile(filePath)
 	if err != nil {
 		slog.Errorf("Error reading file %s: %v\n", filePath, err)
@@ -484,6 +484,7 @@ type HTMLTemplateData struct {
 	Jobs    *AllJobs
 }
 
+//todo: switch to client-side rendering
 func (td HTMLTemplateData) HTMLListJobs() template.HTML {
 	var sb strings.Builder
 	var btn_text string
