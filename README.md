@@ -33,7 +33,6 @@ ClickHouse: [http://localhost:8123](http://localhost:8123) and [http://localhost
 const port = ":8080"                   // web server port  
 const jobsDir = "./examples/"          // jobs directory
 const scanSchedule = "*/10 * * * * *"  // jobs directory rescanning schedule
-const htmlTitle = "Repeater"           // html body.h1 and head.title
 ```
 
 Task `cmd` [parameters](https://github.com/andrewbrdk/Repeater/blob/main/examples/template.job):

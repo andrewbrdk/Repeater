@@ -23,7 +23,6 @@ import (
 const port = ":8080"
 const jobsDir = "./examples/"
 const scanSchedule = "*/10 * * * * *"
-const htmlTitle = "Repeater"
 
 //go:embed index.html
 var content embed.FS
@@ -326,7 +325,7 @@ func (jb Job) CountFailed() int {
 	return f
 }
 
-//todo: switch to client-side rendering
+// todo: switch to client-side rendering
 // func (td HTMLTemplateData) HTMLListJobs() template.HTML {
 // 	var sb strings.Builder
 // 	var btn_text string
@@ -489,13 +488,12 @@ type HTMLTemplateData struct {
 	job_idx int
 	run_idx int
 	cmd_idx int
-	Title   string
 	Jobs    *AllJobs
 }
 
 func httpServer(jobs *AllJobs) {
 	//todo: init once
-	template_data := &HTMLTemplateData{Jobs: jobs, Title: htmlTitle}
+	template_data := &HTMLTemplateData{Jobs: jobs}
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		httpIndex(w, r, template_data)
 	})
@@ -515,14 +513,6 @@ func httpServer(jobs *AllJobs) {
 }
 
 func httpIndex(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	// httpParseJobRunCmd(r, template_data)
-	// tmpl := template.New("tmpl")
-	// tmpl = template.Must(tmpl.Parse(webJobsList))
-	// err := tmpl.Execute(w, template_data)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
 	data, err := content.ReadFile("index.html")
 	if err != nil {
 		http.Error(w, "Error loading the page", http.StatusInternalServerError)
