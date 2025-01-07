@@ -102,6 +102,11 @@
         <!-- dynamic rendering -->
     </div>
 	<script>
+		let selected = {
+			job: null,
+			run: null,
+			task: null
+		};
 		function fetchJobs() {
 			fetch('/jobs')
 				.then(response => {
@@ -126,71 +131,63 @@
             });
         }
 		function jobHTML(job, jobIndex) {
-			//let btnText = jb.CountFailed() > 0 || td.job_idx === jobIndex ? '-' : '+';
-			let btnText = '-';
-			//let visibilityStyle = jb.CountFailed() > 0 || td.job_idx === jobIndex ? 'visible' : 'collapse';
-			let visibilityStyle = 'visible';
-
-    		let job_html = `<table>\n<tr>\n`;
-			job_html += `<th class="collapse_btn"><button id="showhidebtn${jobIndex}" onclick="showhide(${jobIndex})">${btnText}</button></th>`;
-    		job_html += `<th class="task_names"><strong>${job.Title}</strong></th>`;
-			
+    		let job_html = `
+				<table>
+				<tr>
+				<th class="collapse_btn"><button id="showhidebtn${jobIndex}" onclick="showHide(${jobIndex})">+</button></th>
+    			<th class="task_names"><strong>${job.Title}</strong></th>`;
         	job.RunHistory.forEach((run, runIndex) => {
-        		//let selectedClass = (td.job_idx === jobIndex && td.run_idx === runIndex && td.cmd_idx === -1) ? 'selected' : '';
-        		let selectedClass = '';
-				job_html += `<th class="states ${selectedClass}">`;
-				//job_html += `<a href="/?job=${jobIndex}&run=${runIndex}#job${jobIndex}">${getHTMLStatus(run.Status)}</a>`;
-				job_html += `<a href="#" onclick="selectrun(${jobIndex}, ${runIndex});return false;">${getHTMLStatus(run.Status)}</a>`;
-				job_html += `</th>`;
+				job_html += `
+					<th id="job${jobIndex}run${runIndex}" class="states">
+					<a href="/#job${jobIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, null);return false;">${getHTMLStatus(run.Status)}</a>
+					</th>`;
     		});
-			
-			job_html += `<th class="states">&#9633;</th>`;
-        	job_html += `<th class="fill"> </th>`;
-			
-			//let cronText = getCronDescription(job.Cron);
-        	job_html += `<th class="schedule">${job.HCron}</th>`;
-        	job_html += `<th class="runnow_btn"><button onclick="runnow(${jobIndex})">Run Now</button></th>`;
-        	job_html += `<th class="onoff_btn"><button onclick="onoff(${jobIndex})">${job.OnOff ? 'Turn Off' : 'Turn On'}</button></th>`;
-        	job_html += `</tr>\n`;
-
+			job_html += `
+				<th class="states">□</th>
+        		<th class="fill"> </th>
+				<th class="schedule">${job.HCron}</th>
+        		<th class="runnow_btn"><button onclick="runNow(${jobIndex})">Run Now</button></th>
+        		<th class="onoff_btn"><button onclick="onOff(${jobIndex})">${job.OnOff ? 'Turn Off' : 'Turn On'}</button></th>
+        		</tr>`;
 			job.Tasks.forEach((task, taskIndex) => {
-            	job_html += `<tr class="hist${jobIndex}" style="visibility: ${visibilityStyle};">\n`;
-           	 	job_html += `<td class="collapse_btn"> </td>`;
-				job_html += `<td class="task_names">${task.Name}</td>`;
-				
+            	job_html += `
+					<tr class="hist${jobIndex}" style="visibility: collapse;">
+           	 		<td class="collapse_btn"> </td>
+					<td class="task_names">${task.Name}</td>`;
         		job.RunHistory.forEach((run, runIndex) => {
-        		    //let selectedClass = (td.job_idx === jobIndex && td.run_idx === runIndex && td.cmd_idx === taskIndex) ? 'selected' : '';
-					let selectedClass = '';
-        	    	job_html += `<td class="states ${selectedClass}">`;
-					job_html += `<a href="/?job=${jobIndex}&run=${runIndex}&cmd=${taskIndex}#job${jobIndex}">${getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>`;
-					job_html += `</td>`;
+        	    	job_html += `
+						<td id="job${jobIndex}run${runIndex}task${taskIndex}" class="states">
+						<a href="/#job${jobIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, ${taskIndex});return false;">${getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
+						</td>`;
     			});
-				
-			    job_html += `<td class="states">&#9633;</td>`;
-				job_html += `<td class="fill"> </td>`;
-		    	job_html += `<td class="schedule"> </td>`;
-		    	job_html += `<td class="runnow_btn"> </td>`;
-		    	job_html += `<td class="onoff_btn"> </td>\n`;
-				job_html += `</tr>\n`;
+			    job_html += `
+					<td class="states">□</td>
+					<td class="fill"> </td>
+		    		<td class="schedule"> </td>
+		    		<td class="runnow_btn"> </td>
+		    		<td class="onoff_btn"> </td>
+					</tr>`;
 			});
-			job_html += `</table>`;
-			job_html += `</div>`;
-			job_html += `<p class="info_job${jobIndex}">`
- 			//job_html += `${run.ScheduledTime}:`
+			job_html += `
+				</table>
+				</div>`;
+			job_html += `
+				<p class="info_job${jobIndex}" style="display: none;">
+				<button>Restart job</button>
+				</p>
+				<p class="info_job${jobIndex}" style="display: none;">
+				<button>Restart task</button>
+ 				</p>
+				<pre class="info_job${jobIndex}" style="display: none;">
+				<code>&gt; cmd </code>
+ 				<samp> output </samp>
+ 				</pre>`;
+			//job_html += `${run.ScheduledTime}:`
 			//job_html += `<button onclick="restart( ${td.job_idx}, ${td.run_idx}, ${td.cmd_idx} )">Restart job</button>`
-			job_html += `<button>Restart job</button>`
-			job_html += `</p>`
-			job_html += `<p class="info_job${jobIndex}">`
- 			//job_html += `${cmd_run.Name}:`
+			//job_html += `${cmd_run.Name}:`
  			//job_html += `<button onclick="restart( ${td.job_idx}, ${td.run_idx}, ${td.cmd_idx} )">Restart task</button>`
-			job_html += `<button>Restart task</button>`
- 			job_html += `</p>`
-			job_html += `<pre class="info_job${jobIndex} taskrun">`
- 			//job_html += `<code>> ${cmd_run.RenderedCmd} </code>\n`
+			//job_html += `<code>> ${cmd_run.RenderedCmd} </code>\n`
  			//job_html += `<samp> ${cmd_run.lastOutput} </samp>`
-			job_html += `<code>> cmd </code>\n`
- 			job_html += `<samp> output </samp>`
- 			job_html += `</pre>`
 			return job_html;
 		}
 		function getHTMLStatus(runStatus) {
@@ -198,10 +195,34 @@
 			const statusSymbols = ['■', '⨯', '◨', '□'];
 			return statusSymbols[runStatus] || '?';
 		}
-		function selectrun(jobidx, runidx, taskidx) {
-
+		function selectRun(jobIndex, runIndex, taskIndex) {
+			clearSelected();
+			selected = {
+				job: jobIndex,
+				run: runIndex,
+				task: taskIndex
+			};
+			restoreSelected();
 		}
-		function onoff(job) {
+		function clearSelected(){
+			if (selected.job !== null && selected.run !== null && selected.task !== null){
+				e = document.getElementById(`job${selected.job}run${selected.run}task${selected.task}`)
+				e.classList.remove('selected');
+			} else if (selected.job !== null && selected.run !== null && selected.task === null) {
+				e = document.getElementById(`job${selected.job}run${selected.run}`)
+				e.classList.remove('selected');
+			}
+		}
+		function restoreSelected(){
+			if (selected.job !== null && selected.run !== null && selected.task !== null){
+				e = document.getElementById(`job${selected.job}run${selected.run}task${selected.task}`)
+				e.classList.add('selected');
+			} else if (selected.job !== null && selected.run !== null && selected.task === null) {
+				e = document.getElementById(`job${selected.job}run${selected.run}`)
+				e.classList.add('selected');
+			}
+		}
+		function onOff(job) {
 			fetch('/onoff?job=' + job)
 				.then(response => {
 					fetchJobs();
@@ -210,7 +231,7 @@
 					console.error('Error toggling state:', error);
 				});
 		}
-		function runnow(job) {
+		function runNow(job) {
 			fetch('/runnow?job=' + job)
 				.then(response => {
 					fetchJobs();
@@ -228,7 +249,7 @@
 					console.error('Error restarting job:', error);
 				});
 		}
-		function showhide(job) {
+		function showHide(job) {
 			for (const e of document.querySelectorAll('.hist' + job)) {
         		if ( e.style.visibility == 'visible' )
             		e.style.visibility = 'collapse';

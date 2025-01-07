@@ -199,7 +199,6 @@ func scheduleJob(jb *Job, jobs *AllJobs, c *cron.Cron) {
 }
 
 func runScheduled(jb *Job, c *cron.Cron) {
-	//todo: don't pass *cron.Cron
 	if !jb.OnOff {
 		slog.Infof("Skipping '%s'", jb.Title)
 		return
@@ -210,7 +209,6 @@ func runScheduled(jb *Job, c *cron.Cron) {
 }
 
 func initRun(jb *Job, c *cron.Cron) *JobRun {
-	//todo: don't pass *cron.Cron
 	var scheduled_time time.Time
 	if c != nil {
 		scheduled_time = c.Entry(jb.cronID).Prev
@@ -218,7 +216,6 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 		scheduled_time = time.Now()
 	}
 	run := &JobRun{
-		//todo: get scheduled run time for the job
 		ScheduledTime: scheduled_time,
 		StartTime:     time.Now(),
 	}
@@ -331,146 +328,6 @@ func (jb Job) CountFailed() int {
 	}
 	return f
 }
-
-// todo: switch to client-side rendering
-// func (td HTMLTemplateData) HTMLListJobs() template.HTML {
-// 	var sb strings.Builder
-// 	var btn_text string
-// 	var cron_text string
-// 	var visible bool
-// 	var visibility string
-// 	var err error
-// 	exprDesc, _ := hcron.NewDescriptor(hcron.Use24HourTimeFormat(true))
-// 	sb.WriteString(fmt.Sprintf("<h1><a href=\"/\">%s</a></h1>\n", td.Title))
-// 	for job_idx, jb := range td.Jobs.Jobs {
-// 		sb.WriteString("<div>\n")
-// 		sb.WriteString(fmt.Sprintf("<div class=\"job\" id=\"job%v\">", job_idx))
-// 		sb.WriteString("<table>\n")
-// 		// header
-// 		sb.WriteString("<tr>\n")
-// 		if jb.CountFailed() > 0 || td.job_idx == job_idx {
-// 			visible = true
-// 			btn_text = "-"
-// 		} else {
-// 			visible = false
-// 			btn_text = "+"
-// 		}
-// 		sb.WriteString(fmt.Sprintf("<th class=\"collapse_btn\"><button id=\"showhidebtn%v\" onclick=\"showhide(%v)\">%s</button></th>", job_idx, job_idx, btn_text))
-// 		sb.WriteString(fmt.Sprintf("<th class=\"task_names\"><strong>%s</strong></th>", jb.Title))
-// 		for c := 0; c < len(jb.RunHistory); c++ {
-// 			if td.job_idx == job_idx && td.run_idx == c && td.cmd_idx == -1 {
-// 				sb.WriteString("<th class=\"states selected\">")
-// 			} else {
-// 				sb.WriteString("<th class=\"states\">")
-// 			}
-// 			sb.WriteString(fmt.Sprintf("<a href=\"/?job=%v&run=%v#job%v\">%s</a>", job_idx, c, job_idx, jb.RunHistory[c].Status.HTMLStatus()))
-// 			sb.WriteString("</th>")
-// 		}
-// 		sb.WriteString("<th class=\"states\">&#9633;</th>")
-// 		sb.WriteString("<th class=\"fill\"> </th>")
-// 		cron_text, err = exprDesc.ToDescription(jb.Cron, hcron.Locale_en)
-// 		if err != nil {
-// 			cron_text = jb.Cron
-// 		}
-// 		sb.WriteString(fmt.Sprintf("<th class=\"schedule\">%s</th>", cron_text))
-// 		sb.WriteString(fmt.Sprintf("<th class=\"runnow_btn\"><button onclick=\"runnow( %v )\">Run Now</button></th>\n", job_idx))
-// 		if jb.OnOff {
-// 			btn_text = "Turn Off"
-// 		} else {
-// 			btn_text = "Turn On"
-// 		}
-// 		sb.WriteString(fmt.Sprintf("<th class=\"onoff_btn\"><button onclick=\"onoff( %v )\">%s</button></th>\n", job_idx, btn_text))
-// 		sb.WriteString("</tr>\n")
-// 		// tasks statuses
-// 		for r := 0; r < len(jb.Tasks); r++ {
-// 			if visible {
-// 				visibility = "style=\"visibility: visible;\""
-// 			} else {
-// 				visibility = "style=\"visibility: collapse;\""
-// 			}
-// 			sb.WriteString(fmt.Sprintf("<tr class=\"hist%v\" %s>\n", job_idx, visibility))
-// 			for c := -1; c <= len(jb.RunHistory); c++ {
-// 				if c == -1 {
-// 					sb.WriteString("<td class=\"collapse_btn\"> </td>")
-// 					sb.WriteString(fmt.Sprintf("<td class=\"task_names\"> %s </td>", html.EscapeString(jb.Tasks[r].Name)))
-// 				} else if c < len(jb.RunHistory) {
-// 					if td.job_idx == job_idx && td.run_idx == c && td.cmd_idx == r {
-// 						sb.WriteString("<td class=\"states selected\">")
-// 					} else {
-// 						sb.WriteString("<td class=\"states\">")
-// 					}
-// 					sb.WriteString(fmt.Sprintf("<a href=\"/?job=%v&run=%v&cmd=%v#job%v\">%s</a>", job_idx, c, r, job_idx, jb.RunHistory[c].TasksHistory[r].Status.HTMLStatus()))
-// 					sb.WriteString("</td>")
-// 				} else if c == len(jb.RunHistory) {
-// 					sb.WriteString("<td class=\"states\">&#9633;</td>")
-// 					sb.WriteString("<td class=\"fill\"> </td>")
-// 					sb.WriteString("<td class=\"schedule\"> </td>")
-// 					sb.WriteString("<td class=\"runnow_btn\"> </td>")
-// 					sb.WriteString("<td class=\"onoff_btn\"> </td>\n")
-// 				} else {
-// 					slog.Error("this is not supposed to happen")
-// 				}
-// 			}
-// 			sb.WriteString("</tr>\n")
-// 		}
-// 		sb.WriteString("</table>\n")
-// 		sb.WriteString("</div>\n")
-// 		if td.job_idx == job_idx {
-// 			if td.run_idx != -1 {
-// 				run := jb.RunHistory[td.run_idx]
-// 				sb.WriteString("<p>")
-// 				sb.WriteString(fmt.Sprintf("%s: ", run.ScheduledTime.Format("02 Jan 06 15:04:05")))
-// 				sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart job</button> ", td.job_idx, td.run_idx, td.cmd_idx))
-// 				//sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart failed & dependencies</button>", td.job_idx, td.run_idx, td.cmd_idx))
-// 				sb.WriteString("</p>")
-// 			}
-// 			if td.run_idx != -1 && td.cmd_idx != -1 {
-// 				cmd_run := jb.RunHistory[td.run_idx].TasksHistory[td.cmd_idx]
-// 				sb.WriteString("<p>")
-// 				sb.WriteString(fmt.Sprintf("%s: ", cmd_run.Name))
-// 				sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart task</button> ", td.job_idx, td.run_idx, td.cmd_idx))
-// 				//todo: define restart_with_dependencies
-// 				//sb.WriteString(fmt.Sprintf("<button onclick=\"restart( %v, %v, %v )\">Restart task & dependencies</button>", td.job_idx, td.run_idx, td.cmd_idx))
-// 				sb.WriteString("</p>")
-// 				sb.WriteString("<pre>")
-// 				sb.WriteString(fmt.Sprintf("<code>> %s </code>\n", cmd_run.RenderedCmd))
-// 				sb.WriteString(fmt.Sprintf("<samp>%s</samp>", cmd_run.lastOutput))
-// 				sb.WriteString("</pre>")
-// 			}
-// 		}
-// 		sb.WriteString("</div>\n")
-// 	}
-// 	return template.HTML(sb.String())
-// }
-
-// func (td HTMLTemplateData) HTMLHistoryTable(job_idx int) string {
-// 	jb := td.Jobs.Jobs[job_idx]
-// 	var sb strings.Builder
-// 	sb.WriteString("<table>\n")
-// 	for r := -1; r < len(jb.Tasks); r++ {
-// 		sb.WriteString("<tr>\n")
-// 		for c := -1; c <= len(jb.RunHistory); c++ {
-// 			if r == -1 && c == -1 {
-// 				sb.WriteString("<th> </th>")
-// 			} else if r == -1 && c < len(jb.RunHistory) {
-// 				sb.WriteString(fmt.Sprintf("<th> <a href=\"/?job=%v&run=%v\">%s</a> </th>", job_idx, c, jb.RunHistory[c].Status.HTMLStatus()))
-// 			} else if r == -1 && c == len(jb.RunHistory) {
-// 				sb.WriteString("<th>&#9633;</th>")
-// 			} else if c == -1 {
-// 				sb.WriteString(fmt.Sprintf("<td> %s </td>", html.EscapeString(jb.Tasks[r].Name)))
-// 			} else if c < len(jb.RunHistory) {
-// 				sb.WriteString(fmt.Sprintf("<td> <a href=\"/?job=%v&run=%v&cmd=%v\">%s</a> </td>", job_idx, c, r, jb.RunHistory[c].TasksHistory[r].Status.HTMLStatus()))
-// 			} else if c == len(jb.RunHistory) {
-// 				sb.WriteString("<td>&#9633;</td>")
-// 			} else {
-// 				slog.Error("this is not supposed to happen")
-// 			}
-// 		}
-// 		sb.WriteString("</tr>\n")
-// 	}
-// 	sb.WriteString("</table>\n")
-// 	return sb.String()
-// }
 
 type HTMLTemplateData struct {
 	job_idx int
