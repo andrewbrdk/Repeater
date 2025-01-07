@@ -139,7 +139,8 @@
         		//let selectedClass = (td.job_idx === jobIndex && td.run_idx === runIndex && td.cmd_idx === -1) ? 'selected' : '';
         		let selectedClass = '';
 				job_html += `<th class="states ${selectedClass}">`;
-				job_html += `<a href="/?job=${jobIndex}&run=${runIndex}#job${jobIndex}">${getHTMLStatus(run.Status)}</a>`;
+				//job_html += `<a href="/?job=${jobIndex}&run=${runIndex}#job${jobIndex}">${getHTMLStatus(run.Status)}</a>`;
+				job_html += `<a href="#" onclick="selectrun(${jobIndex}, ${runIndex});return false;">${getHTMLStatus(run.Status)}</a>`;
 				job_html += `</th>`;
     		});
 			
@@ -172,13 +173,33 @@
 		    	job_html += `<td class="onoff_btn"> </td>\n`;
 				job_html += `</tr>\n`;
 			});
-			job_html += `</table>\n</div>\n`;
+			job_html += `</table>`;
+			job_html += `</div>`;
+			job_html += `<p class="info_job${jobIndex}">`
+ 			//job_html += `${run.ScheduledTime}:`
+			//job_html += `<button onclick="restart( ${td.job_idx}, ${td.run_idx}, ${td.cmd_idx} )">Restart job</button>`
+			job_html += `<button>Restart job</button>`
+			job_html += `</p>`
+			job_html += `<p class="info_job${jobIndex}">`
+ 			//job_html += `${cmd_run.Name}:`
+ 			//job_html += `<button onclick="restart( ${td.job_idx}, ${td.run_idx}, ${td.cmd_idx} )">Restart task</button>`
+			job_html += `<button>Restart task</button>`
+ 			job_html += `</p>`
+			job_html += `<pre class="info_job${jobIndex} taskrun">`
+ 			//job_html += `<code>> ${cmd_run.RenderedCmd} </code>\n`
+ 			//job_html += `<samp> ${cmd_run.lastOutput} </samp>`
+			job_html += `<code>> cmd </code>\n`
+ 			job_html += `<samp> output </samp>`
+ 			job_html += `</pre>`
 			return job_html;
 		}
 		function getHTMLStatus(runStatus) {
 			// "&#9632;", "&Cross;", "&#9704;" "&#9633;"
 			const statusSymbols = ['■', '⨯', '◨', '□'];
 			return statusSymbols[runStatus] || '?';
+		}
+		function selectrun(jobidx, runidx, taskidx) {
+
 		}
 		function onoff(job) {
 			fetch('/onoff?job=' + job)
@@ -213,6 +234,13 @@
             		e.style.visibility = 'collapse';
         		else
             		e.style.visibility = 'visible';
+			}
+			for (const e of document.querySelectorAll('.info_job' + job)) {
+				if (e.style.display === "none") {
+					e.style.display = "block";
+				} else {
+					e.style.display = "none";
+				}
 			}
 			var b = document.getElementById('showhidebtn' + job);
 			if (b.innerText == '-')
