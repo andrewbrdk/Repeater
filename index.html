@@ -59,11 +59,20 @@
 			border-bottom-style: solid;
 			border-width: medium;
 		}
+		th.schedule, td.schedule {
+			width: 10rem;
+			min-width: 10rem;
+			text-align: right;
+			position: sticky;
+			right: 10rem;
+			background-color: white;
+		}
 		th.runnow_btn, td.runnow_btn {
 			width: 5rem;
 			min-width: 5rem;
-			text-align: center;
-			right: 0;
+			text-align: right;
+			position: sticky;
+			right: 5rem;
 			background-color: white;
 		}
 		th.onoff_btn, td.onoff_btn {
@@ -72,14 +81,6 @@
 			text-align: right;
 			position: sticky;
 			right: 0;
-			background-color: white;
-		}
-		th.schedule, td.schedule {
-			width: 10rem;
-			min-width: 10rem;
-			text-align: right;
-			position: sticky;
-			right: 5rem;
 			background-color: white;
 		}
 		table a {
@@ -114,6 +115,7 @@
         }
 		function renderAllJobs(jobs) {
             const alljobs = document.getElementById('alljobs');
+			//todo: avoid flash https://stackoverflow.com/a/1392278
             alljobs.replaceChildren();
             jobs['Jobs'].forEach((job, jobIndex) => {
                 const jobDiv = document.createElement('div');
@@ -125,22 +127,22 @@
         }
 		function jobHTML(job, jobIndex) {
 			//let btnText = jb.CountFailed() > 0 || td.job_idx === jobIndex ? '-' : '+';
-			let btnText = '+';
+			let btnText = '-';
 			//let visibilityStyle = jb.CountFailed() > 0 || td.job_idx === jobIndex ? 'visible' : 'collapse';
 			let visibilityStyle = 'visible';
 
     		let job_html = `<table>\n<tr>\n`;
 			job_html += `<th class="collapse_btn"><button id="showhidebtn${jobIndex}" onclick="showhide(${jobIndex})">${btnText}</button></th>`;
     		job_html += `<th class="task_names"><strong>${job.Title}</strong></th>`;
-			/*
-        		job.RunHistory.forEach((run, runIndex) => {
-        		    //let selectedClass = (td.job_idx === jobIndex && td.run_idx === runIndex && td.cmd_idx === -1) ? 'selected' : '';
-        		    let selectedClass = '';
-					jobDiv.innerHTML += `<th class="states ${selectedClass}">`;
-					jobDiv.innerHTML += `<a href="/?job=${jobIndex}&run=${runIndex}#job${jobIndex}">${run.Status}</a>`;
-					jobDiv.innerHTML += `</th>`;
-        		});
-			*/
+			
+        	job.RunHistory.forEach((run, runIndex) => {
+        		//let selectedClass = (td.job_idx === jobIndex && td.run_idx === runIndex && td.cmd_idx === -1) ? 'selected' : '';
+        		let selectedClass = '';
+				job_html += `<th class="states ${selectedClass}">`;
+				job_html += `<a href="/?job=${jobIndex}&run=${runIndex}#job${jobIndex}">${getHTMLStatus(run.Status)}</a>`;
+				job_html += `</th>`;
+    		});
+			
 			job_html += `<th class="states">&#9633;</th>`;
         	job_html += `<th class="fill"> </th>`;
 			
@@ -155,15 +157,15 @@
             	job_html += `<tr class="hist${jobIndex}" style="visibility: ${visibilityStyle};">\n`;
            	 	job_html += `<td class="collapse_btn"> </td>`;
 				job_html += `<td class="task_names">${task.Name}</td>`;
-				/*
+				
         		job.RunHistory.forEach((run, runIndex) => {
         		    //let selectedClass = (td.job_idx === jobIndex && td.run_idx === runIndex && td.cmd_idx === taskIndex) ? 'selected' : '';
 					let selectedClass = '';
-        	    	jobDiv.innerHTML += `<td class="states ${selectedClass}">`;
-					jobDiv.innerHTML += `<a href="/?job=${jobIndex}&run=${runIndex}&cmd=${taskIndex}#job${jobIndex}">${run.TasksHistory[taskIndex].Status}</a>`;
-    		    	jobDiv.innerHTML += `</td>`;
+        	    	job_html += `<td class="states ${selectedClass}">`;
+					job_html += `<a href="/?job=${jobIndex}&run=${runIndex}&cmd=${taskIndex}#job${jobIndex}">${getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>`;
+					job_html += `</td>`;
     			});
-				*/
+				
 			    job_html += `<td class="states">&#9633;</td>`;
 				job_html += `<td class="fill"> </td>`;
 		    	job_html += `<td class="schedule"> </td>`;
@@ -174,10 +176,15 @@
 			job_html += `</table>\n</div>\n`;
 			return job_html;
 		}
+		function getHTMLStatus(runStatus) {
+			// "&#9632;", "&Cross;", "&#9704;" "&#9633;"
+			const statusSymbols = ['■', '⨯', '◨', '□'];
+			return statusSymbols[runStatus] || '?';
+		}
 		function onoff(job) {
 			fetch('/onoff?job=' + job)
 				.then(response => {
-					location.reload();
+					fetchJobs();
 				})
 				.catch(error => {
 					console.error('Error toggling state:', error);
@@ -186,7 +193,7 @@
 		function runnow(job) {
 			fetch('/runnow?job=' + job)
 				.then(response => {
-					location.reload();
+					fetchJobs();
 				})
 				.catch(error => {
 					console.error('Error starting job:', error);
@@ -195,7 +202,7 @@
 		function restart(job, run, cmd) {
 			fetch('/restart?job=' + job + '&run=' + run + '&cmd=' + cmd)
 				.then(response => {
-					location.reload();
+					fetchJobs();
 				})
 				.catch(error => {
 					console.error('Error restarting job:', error);
@@ -215,8 +222,6 @@
 				b.innerText = '-';
 		}
         
-        
-
         fetchJobs();
 
 		document.addEventListener("DOMContentLoaded", function() {
