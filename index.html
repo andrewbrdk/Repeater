@@ -147,8 +147,7 @@
         	job_html += `<th class="fill"> </th>`;
 			
 			//let cronText = getCronDescription(job.Cron);
-			let cronText = job.Cron;
-        	job_html += `<th class="schedule">${cronText}</th>`;
+        	job_html += `<th class="schedule">${job.HCron}</th>`;
         	job_html += `<th class="runnow_btn"><button onclick="runnow(${jobIndex})">Run Now</button></th>`;
         	job_html += `<th class="onoff_btn"><button onclick="onoff(${jobIndex})">${job.OnOff ? 'Turn Off' : 'Turn On'}</button></th>`;
         	job_html += `</tr>\n`;

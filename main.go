@@ -17,6 +17,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/gookit/slog"
+	hcron "github.com/lnquy/cron"
 	"github.com/robfig/cron/v3"
 )
 
@@ -65,9 +66,10 @@ type JobRun struct {
 type Job struct {
 	file       string
 	md5        [16]byte
-	Title      string  `toml:"title" json:"Title"`
-	Cron       string  `toml:"cron" json:"Cron"`
-	Tasks      []*Task `toml:"tasks" json:"Tasks"`
+	Title      string `toml:"title"`
+	Cron       string `toml:"cron"`
+	HCron      string
+	Tasks      []*Task `toml:"tasks"`
 	cronID     cron.EntryID
 	RunHistory []*JobRun
 	OnOff      bool
@@ -178,6 +180,11 @@ func processJobFile(filePath string) (*Job, error) {
 	if err != nil {
 		slog.Errorf("Error parsing file %s: %v\n", filePath, err)
 		return nil, err
+	}
+	exprDesc, _ := hcron.NewDescriptor(hcron.Use24HourTimeFormat(true))
+	jb.HCron, err = exprDesc.ToDescription(jb.Cron, hcron.Locale_en)
+	if err != nil {
+		jb.HCron = jb.Cron
 	}
 	return &jb, nil
 }
