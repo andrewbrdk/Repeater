@@ -43,13 +43,13 @@ type Task struct {
 
 type TaskRun struct {
 	Name              string
-	Cmd               string
-	RenderedCmd       string
+	cmd               string
+	renderedCmd       string
 	StartTime         time.Time
 	EndTime           time.Time
 	Status            RunStatus
 	Attempt           int
-	CmdTemplateParams map[string]string
+	cmdTemplateParams map[string]string
 	//todo: store in db
 	lastOutput string
 }
@@ -218,10 +218,10 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 	for _, t := range jb.Tasks {
 		run.TasksHistory = append(run.TasksHistory, &TaskRun{
 			Name:    t.Name,
-			Cmd:     t.Cmd,
+			cmd:     t.Cmd,
 			Status:  NoRun,
 			Attempt: 0,
-			CmdTemplateParams: map[string]string{
+			cmdTemplateParams: map[string]string{
 				"title":        jb.Title,
 				"scheduled_dt": run.ScheduledTime.Format("2006-01-02"),
 			}})
@@ -252,27 +252,27 @@ func runJob(run *JobRun, jb *Job) error {
 
 func runCommand(tr *TaskRun) error {
 	tmpl := texttemplate.New("tmpl")
-	tmpl, err := tmpl.Parse(tr.Cmd)
+	tmpl, err := tmpl.Parse(tr.cmd)
 	if err != nil {
-		slog.Errorf("Error parsing command template '%s'-'%s'-'%s': %v\n", tr.CmdTemplateParams["title"], tr.Name, tr.Cmd, err)
+		slog.Errorf("Error parsing command template '%s'-'%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, tr.cmd, err)
 		return err
 	}
 	sb := new(strings.Builder)
-	err = tmpl.Execute(sb, tr.CmdTemplateParams)
+	err = tmpl.Execute(sb, tr.cmdTemplateParams)
 	if err != nil {
-		slog.Errorf("Error rendering command template '%s'-'%s'-'%s': %v\n", tr.CmdTemplateParams["title"], tr.Name, tr.Cmd, err)
+		slog.Errorf("Error rendering command template '%s'-'%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, tr.cmd, err)
 		return err
 	}
 	tr.StartTime = time.Now()
 	tr.Attempt += tr.Attempt
-	tr.RenderedCmd = sb.String()
+	tr.renderedCmd = sb.String()
 	tr.Status = Running
-	output, err := executeCmd(tr.RenderedCmd)
+	output, err := executeCmd(tr.renderedCmd)
 	tr.lastOutput = output
 	tr.EndTime = time.Now()
 	tr.Status = RunSuccess
 	if err != nil {
-		slog.Errorf("Error executing '%s'-'%s': %v\n", tr.CmdTemplateParams["title"], tr.Name, err)
+		slog.Errorf("Error executing '%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, err)
 		tr.Status = RunFailure
 	}
 	return err
