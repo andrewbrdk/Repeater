@@ -25,7 +25,7 @@ const jobsDir = "./examples/"
 const scanSchedule = "*/10 * * * * *"
 
 //go:embed index.html
-var content embed.FS
+var embedded embed.FS
 
 type RunStatus int
 
@@ -50,8 +50,8 @@ type TaskRun struct {
 	Status            RunStatus
 	Attempt           int
 	CmdTemplateParams map[string]string
-	//todo: store in db?
-	LastOutput string
+	//todo: store in db
+	lastOutput string
 }
 
 type JobRun struct {
@@ -63,11 +63,11 @@ type JobRun struct {
 }
 
 type Job struct {
-	File       string
-	MD5        [16]byte
-	Title      string  `toml:"title"`
-	Cron       string  `toml:"cron"`
-	Tasks      []*Task `toml:"tasks"`
+	file       string
+	md5        [16]byte
+	Title      string  `toml:"title" json:"Title"`
+	Cron       string  `toml:"cron" json:"Cron"`
+	Tasks      []*Task `toml:"tasks" json:"Tasks"`
 	cronID     cron.EntryID
 	RunHistory []*JobRun
 	OnOff      bool
@@ -104,7 +104,6 @@ func scanAndScheduleJobs(jobs *AllJobs, c *cron.Cron) {
 			slog.Infof("Skipping %s", f)
 		}
 	}
-	//todo: move to frontend
 	sort.SliceStable(jobs.Jobs, func(i, j int) bool {
 		return jobs.Jobs[i].Title < jobs.Jobs[j].Title
 	})
@@ -134,16 +133,16 @@ func removeJobsWithoutFiles(files map[string][16]byte, jobs *AllJobs, c *cron.Cr
 	//todo: simplify removing
 	var toremove []int
 	for idx, jb := range jobs.Jobs {
-		md5, haskey := files[jb.File]
+		md5, haskey := files[jb.file]
 		if !haskey {
 			slog.Infof("Marking %s for deletion", jb.Title)
 			toremove = append(toremove, idx)
-		} else if md5 != jb.MD5 {
-			slog.Infof("File %s has changed, marking for reloading", jb.File)
+		} else if md5 != jb.md5 {
+			slog.Infof("File %s has changed, marking for reloading", jb.file)
 			toremove = append(toremove, idx)
-		} else if md5 == jb.MD5 {
-			slog.Infof("File %s has not changed, skipping", jb.File)
-			delete(files, jb.File)
+		} else if md5 == jb.md5 {
+			slog.Infof("File %s has not changed, skipping", jb.file)
+			delete(files, jb.file)
 		} else {
 			panic("This is not supposed to happen")
 		}
@@ -166,14 +165,15 @@ func removeJobsWithoutFiles(files map[string][16]byte, jobs *AllJobs, c *cron.Cr
 
 func processJobFile(filePath string) (*Job, error) {
 	var jb Job
-	jb.File = filePath
+	jb.file = filePath
 	jb.OnOff = false
 	f, err := os.ReadFile(filePath)
 	if err != nil {
 		slog.Errorf("Error reading file %s: %v\n", filePath, err)
 		return nil, err
 	}
-	jb.MD5 = md5.Sum(f)
+	jb.md5 = md5.Sum(f)
+	jb.RunHistory = make([]*JobRun, 0)
 	err = toml.Unmarshal(f, &jb)
 	if err != nil {
 		slog.Errorf("Error parsing file %s: %v\n", filePath, err)
@@ -188,7 +188,7 @@ func scheduleJob(jb *Job, jobs *AllJobs, c *cron.Cron) {
 		jb.Cron,
 		func() { runScheduled(jb, c) },
 	)
-	slog.Infof("Added job '%s' from file '%s'", jb.Title, jb.File)
+	slog.Infof("Added job '%s' from file '%s'", jb.Title, jb.file)
 }
 
 func runScheduled(jb *Job, c *cron.Cron) {
@@ -268,7 +268,7 @@ func runCommand(tr *TaskRun) error {
 	tr.RenderedCmd = sb.String()
 	tr.Status = Running
 	output, err := executeCmd(tr.RenderedCmd)
-	tr.LastOutput = output
+	tr.lastOutput = output
 	tr.EndTime = time.Now()
 	tr.Status = RunSuccess
 	if err != nil {
@@ -427,32 +427,13 @@ func (jb Job) CountFailed() int {
 // 				sb.WriteString("</p>")
 // 				sb.WriteString("<pre>")
 // 				sb.WriteString(fmt.Sprintf("<code>> %s </code>\n", cmd_run.RenderedCmd))
-// 				sb.WriteString(fmt.Sprintf("<samp>%s</samp>", cmd_run.LastOutput))
+// 				sb.WriteString(fmt.Sprintf("<samp>%s</samp>", cmd_run.lastOutput))
 // 				sb.WriteString("</pre>")
 // 			}
 // 		}
 // 		sb.WriteString("</div>\n")
 // 	}
 // 	return template.HTML(sb.String())
-// }
-
-// func (s RunStatus) HTMLStatus() template.HTML {
-// 	switch s {
-// 	case RunSuccess:
-// 		//return "&#9632;"
-// 		return "■"
-// 	case RunFailure:
-// 		//return "&Cross;"
-// 		return "⨯"
-// 	case Running:
-// 		//return "&#9704"
-// 		return "◨"
-// 	case NoRun:
-// 		//return &#9633;
-// 		return "□"
-// 	default:
-// 		return "?"
-// 	}
 // }
 
 // func (td HTMLTemplateData) HTMLHistoryTable(job_idx int) string {
@@ -492,7 +473,6 @@ type HTMLTemplateData struct {
 }
 
 func httpServer(jobs *AllJobs) {
-	//todo: init once
 	template_data := &HTMLTemplateData{Jobs: jobs}
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		httpIndex(w, r, template_data)
@@ -513,7 +493,7 @@ func httpServer(jobs *AllJobs) {
 }
 
 func httpIndex(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	data, err := content.ReadFile("index.html")
+	data, err := embedded.ReadFile("index.html")
 	if err != nil {
 		http.Error(w, "Error loading the page", http.StatusInternalServerError)
 		return
