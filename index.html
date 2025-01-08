@@ -183,8 +183,8 @@
         		job.RunHistory.forEach((run, runIndex) => {
 					let selected = (job.displaystate['visibility'] && job.displaystate['selected_run'] == runIndex && job.displaystate['selected_task'] == taskIndex) ? 'selected' : '';
         	    	html += `
-						<td id="job${jobIndex}run${runIndex}" class="states ${selected}">
-						<a href="/#job${jobIndex}run${runIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, ${taskIndex});return false;">${getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
+						<td id="job${jobIndex}run${runIndex}task${taskIndex}" class="states ${selected}">
+						<a href="/#job${jobIndex}run${runIndex}task${taskIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, ${taskIndex});return false;">${getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
 						</td>`;
     			});
 			    html += `
@@ -233,9 +233,9 @@
 			JOBS.Jobs[jobIndex].displaystate.selected_task = taskIndex;
 			var e = document.getElementById('job' + jobIndex);
 			let div = jobDiv(JOBS.Jobs[jobIndex], jobIndex);
+			let s = e.scrollLeft;
 			e.parentNode.replaceChild(div, e);
-			let r = document.getElementById('job' + jobIndex + 'run' + runIndex);
-			r.scrollIntoView({ behavior: "auto", block: "center", inline: "center" });
+			div.scrollLeft = s;
 		}
 		async function onOff(job) {
 			let res = await fetch('/onoff?job=' + job);
@@ -256,7 +256,9 @@
 			JOBS.Jobs[jobIndex].displaystate.visibility = !JOBS.Jobs[jobIndex].displaystate.visibility;
 			var e = document.getElementById('job' + jobIndex);
 			let div = jobDiv(JOBS.Jobs[jobIndex], jobIndex);
+			let s = e.scrollLeft;
 			e.parentNode.replaceChild(div, e);
+			div.scrollLeft = s;
 		}
 		function formatDateTime(d) {
 			return (
