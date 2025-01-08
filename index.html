@@ -102,65 +102,92 @@
         <!-- dynamic rendering -->
     </div>
 	<script>
-		let selected = {
-			job: null,
-			run: null,
-			task: null
-		};
-		function fetchJobs() {
-			fetch('/jobs')
-				.then(response => {
-					return response.json();
-				}).then(data => {
-            		renderAllJobs(data);
-        		})
-				.catch(error => {
-					console.error('Error fetching jobs:', error);
+		async function renderAllJobs() {
+			let data = await fetchJobs();
+			updateJOBS(data);
+			let divs = [];
+            JOBS['Jobs'].forEach((job, jobIndex) => {
+				divs.push(jobDiv(job, jobIndex));
+            });
+			const alljobs = document.getElementById('alljobs');
+            alljobs.replaceChildren(...divs);
+			divs.forEach((d, _) => {
+				d.scrollLeft = d.scrollWidth;
 			});
         }
-		function renderAllJobs(jobs) {
-            const alljobs = document.getElementById('alljobs');
-			//todo: avoid flash https://stackoverflow.com/a/1392278
-            alljobs.replaceChildren();
-            jobs['Jobs'].forEach((job, jobIndex) => {
-                const jobDiv = document.createElement('div');
-                jobDiv.classList.add('job');
-				jobDiv.id = `job${jobIndex}`;
-				jobDiv.innerHTML = jobHTML(job, jobIndex);
-				alljobs.appendChild(jobDiv);
-            });
+		async function fetchJobs() {
+			let res = await fetch('/jobs');
+			let d = await res.json();
+			return d;
         }
+		function updateJOBS(data) {
+			JOBS.Jobs = JOBS.Jobs || []
+			data.Jobs.forEach((job, jobIndex) => {
+				let d;
+				if (JOBS.Jobs[jobIndex] !== undefined && JOBS.Jobs[jobIndex].displaystate !== undefined) {
+					d = JOBS.Jobs[jobIndex].displaystate;
+				} else {
+					// todo: define constructor?
+					d = {'visibility': false, 'selected_run': null, 'selected_task': null};
+				}
+				JOBS.Jobs[jobIndex] = job;
+				JOBS.Jobs[jobIndex].displaystate = d;
+            });
+			JOBS.Jobs = JOBS.Jobs.slice(0, data.Jobs.length);
+		}
+		function jobDiv(job, jobIndex) {
+			const jobDiv = document.createElement('div');
+            jobDiv.classList.add('job');
+			jobDiv.id = `job${jobIndex}`;
+			jobDiv.innerHTML = jobHTML(job, jobIndex);
+			return jobDiv;
+		}
 		function jobHTML(job, jobIndex) {
-    		let job_html = `
-				<table>
+    		let html = `<table>`;
+			html += jobTableHeaderHTML(job, jobIndex);
+			html += jobTableTasksHTML(job, jobIndex);
+			html += `</table>`;
+			html += jobRunInfoHTML(job, jobIndex);
+			return html;
+		}
+		function jobTableHeaderHTML(job, jobIndex) {
+			let showhidebtn_text = job.displaystate['visibility'] ? '-' : '+';
+			let html = `
 				<tr>
-				<th class="collapse_btn"><button id="showhidebtn${jobIndex}" onclick="showHide(${jobIndex})">+</button></th>
+				<th class="collapse_btn"><button id="showhidebtn${jobIndex}" onclick="showHide(${jobIndex})">${showhidebtn_text}</button></th>
     			<th class="task_names"><strong>${job.Title}</strong></th>`;
         	job.RunHistory.forEach((run, runIndex) => {
-				job_html += `
-					<th id="job${jobIndex}run${runIndex}" class="states">
-					<a href="/#job${jobIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, null);return false;">${getHTMLStatus(run.Status)}</a>
+				let selected = (job.displaystate['visibility'] && job.displaystate['selected_run'] == runIndex && job.displaystate['selected_task'] === null) ? 'selected' : '';
+				html += `
+					<th id="job${jobIndex}run${runIndex}" class="states ${selected}">
+					<a href="/#job${jobIndex}run${runIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, null);return false;">${getHTMLStatus(run.Status)}</a>
 					</th>`;
     		});
-			job_html += `
+			html += `
 				<th class="states">□</th>
         		<th class="fill"> </th>
 				<th class="schedule">${job.HCron}</th>
         		<th class="runnow_btn"><button onclick="runNow(${jobIndex})">Run Now</button></th>
         		<th class="onoff_btn"><button onclick="onOff(${jobIndex})">${job.OnOff ? 'Turn Off' : 'Turn On'}</button></th>
         		</tr>`;
+			return html;
+		}
+		function jobTableTasksHTML(job, jobIndex) {
+			let visibility = job.displaystate['visibility'] ? 'visible' : 'collapse';
+			let html = ''
 			job.Tasks.forEach((task, taskIndex) => {
-            	job_html += `
-					<tr class="hist${jobIndex}" style="visibility: collapse;">
+            	html += `
+					<tr class="hist${jobIndex}" style="visibility: ${visibility};">
            	 		<td class="collapse_btn"> </td>
 					<td class="task_names">${task.Name}</td>`;
         		job.RunHistory.forEach((run, runIndex) => {
-        	    	job_html += `
-						<td id="job${jobIndex}run${runIndex}task${taskIndex}" class="states">
-						<a href="/#job${jobIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, ${taskIndex});return false;">${getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
+					let selected = (job.displaystate['visibility'] && job.displaystate['selected_run'] == runIndex && job.displaystate['selected_task'] == taskIndex) ? 'selected' : '';
+        	    	html += `
+						<td id="job${jobIndex}run${runIndex}" class="states ${selected}">
+						<a href="/#job${jobIndex}run${runIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, ${taskIndex});return false;">${getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
 						</td>`;
     			});
-			    job_html += `
+			    html += `
 					<td class="states">□</td>
 					<td class="fill"> </td>
 		    		<td class="schedule"> </td>
@@ -168,27 +195,32 @@
 		    		<td class="onoff_btn"> </td>
 					</tr>`;
 			});
-			job_html += `
-				</table>
-				</div>`;
-			job_html += `
-				<p class="info_job${jobIndex}" style="display: none;">
-				<button>Restart job</button>
-				</p>
-				<p class="info_job${jobIndex}" style="display: none;">
-				<button>Restart task</button>
+			return html;
+		}
+		function jobRunInfoHTML(job, jobIndex) {
+			let v = job.displaystate['visibility'];
+			let sr = job.displaystate['selected_run'];
+			let r = job.RunHistory[sr];
+			let display_style = v && r ? 'block' : 'none';
+			const r_sch = r ? formatDateTime(new Date(r['ScheduledTime'])) : '';
+			let html = `
+				<p style="display: ${display_style};">
+				Run scheduled: ${r_sch}
+				<button onclick="restartSelected(${jobIndex}, ${sr}, null)">Restart job</button>
+				</p>`;
+			let st = job.displaystate['selected_task'];
+			let t = r ? r.TasksHistory[st] : null;
+			display_style = v && r && t ? 'block' : 'none';
+			const t_st = t ? formatDateTime(new Date(t['StartTime'])) : '';
+			const t_cmd = t ? t.RenderedCmd : '';
+			html += `
+				<p style="display: ${display_style};">
+				Task started: ${t_st}
+				<button onclick="restartSelected(${jobIndex}, ${sr}, ${st})">Restart task</button>
  				</p>
-				<pre class="info_job${jobIndex}" style="display: none;">
-				<code>&gt; cmd </code>
- 				<samp> output </samp>
+				<pre style="display: ${display_style};"><code>> ${t_cmd} </code>\n<samp> output </samp>
  				</pre>`;
-			//job_html += `${run.ScheduledTime}:`
-			//job_html += `<button onclick="restart( ${td.job_idx}, ${td.run_idx}, ${td.cmd_idx} )">Restart job</button>`
-			//job_html += `${cmd_run.Name}:`
- 			//job_html += `<button onclick="restart( ${td.job_idx}, ${td.run_idx}, ${td.cmd_idx} )">Restart task</button>`
-			//job_html += `<code>> ${cmd_run.RenderedCmd} </code>\n`
- 			//job_html += `<samp> ${cmd_run.lastOutput} </samp>`
-			return job_html;
+			return html;
 		}
 		function getHTMLStatus(runStatus) {
 			// "&#9632;", "&Cross;", "&#9704;" "&#9633;"
@@ -196,87 +228,48 @@
 			return statusSymbols[runStatus] || '?';
 		}
 		function selectRun(jobIndex, runIndex, taskIndex) {
-			clearSelected();
-			selected = {
-				job: jobIndex,
-				run: runIndex,
-				task: taskIndex
-			};
-			restoreSelected();
+			JOBS.Jobs[jobIndex].displaystate.visibility = true;
+			JOBS.Jobs[jobIndex].displaystate.selected_run = runIndex;
+			JOBS.Jobs[jobIndex].displaystate.selected_task = taskIndex;
+			var e = document.getElementById('job' + jobIndex);
+			let div = jobDiv(JOBS.Jobs[jobIndex], jobIndex);
+			e.parentNode.replaceChild(div, e);
+			let r = document.getElementById('job' + jobIndex + 'run' + runIndex);
+			r.scrollIntoView({ behavior: "auto", block: "center", inline: "center" });
 		}
-		function clearSelected(){
-			if (selected.job !== null && selected.run !== null && selected.task !== null){
-				e = document.getElementById(`job${selected.job}run${selected.run}task${selected.task}`)
-				e.classList.remove('selected');
-			} else if (selected.job !== null && selected.run !== null && selected.task === null) {
-				e = document.getElementById(`job${selected.job}run${selected.run}`)
-				e.classList.remove('selected');
-			}
+		async function onOff(job) {
+			let res = await fetch('/onoff?job=' + job);
+			// todo: return jobs in res
+			await renderAllJobs();
 		}
-		function restoreSelected(){
-			if (selected.job !== null && selected.run !== null && selected.task !== null){
-				e = document.getElementById(`job${selected.job}run${selected.run}task${selected.task}`)
-				e.classList.add('selected');
-			} else if (selected.job !== null && selected.run !== null && selected.task === null) {
-				e = document.getElementById(`job${selected.job}run${selected.run}`)
-				e.classList.add('selected');
-			}
+		async function runNow(job) {
+			let res = await fetch('/runnow?job=' + job);
+			// todo: return jobs in res
+			await renderAllJobs();
 		}
-		function onOff(job) {
-			fetch('/onoff?job=' + job)
-				.then(response => {
-					fetchJobs();
-				})
-				.catch(error => {
-					console.error('Error toggling state:', error);
-				});
+		async function restartSelected(job, run, task) {
+			let res = await fetch('/restart?job=' + job + '&run=' + run + '&cmd=' + task);
+			// todo: return jobs in res
+			await renderAllJobs();
 		}
-		function runNow(job) {
-			fetch('/runnow?job=' + job)
-				.then(response => {
-					fetchJobs();
-				})
-				.catch(error => {
-					console.error('Error starting job:', error);
-			});
+		function showHide(jobIndex) {
+			JOBS.Jobs[jobIndex].displaystate.visibility = !JOBS.Jobs[jobIndex].displaystate.visibility;
+			var e = document.getElementById('job' + jobIndex);
+			let div = jobDiv(JOBS.Jobs[jobIndex], jobIndex);
+			e.parentNode.replaceChild(div, e);
 		}
-		function restart(job, run, cmd) {
-			fetch('/restart?job=' + job + '&run=' + run + '&cmd=' + cmd)
-				.then(response => {
-					fetchJobs();
-				})
-				.catch(error => {
-					console.error('Error restarting job:', error);
-				});
+		function formatDateTime(d) {
+			return (
+				d.getDate().toString().padStart(2, '0') + "-" +
+				(d.getMonth()+1).toString().padStart(2, '0') + "-" +
+    			d.getFullYear() + " " + 
+				d.getHours().toString().padStart(2, '0') + ":" + 
+				d.getMinutes().toString().padStart(2, '0') + ":" +
+				d.getSeconds().toString().padStart(2, '0')
+			);
 		}
-		function showHide(job) {
-			for (const e of document.querySelectorAll('.hist' + job)) {
-        		if ( e.style.visibility == 'visible' )
-            		e.style.visibility = 'collapse';
-        		else
-            		e.style.visibility = 'visible';
-			}
-			for (const e of document.querySelectorAll('.info_job' + job)) {
-				if (e.style.display === "none") {
-					e.style.display = "block";
-				} else {
-					e.style.display = "none";
-				}
-			}
-			var b = document.getElementById('showhidebtn' + job);
-			if (b.innerText == '-')
-				b.innerText = '+';
-			else 
-				b.innerText = '-';
-		}
-        
-        fetchJobs();
-
-		document.addEventListener("DOMContentLoaded", function() {
-			for (const e of document.querySelectorAll('.job')) {
-				e.scrollLeft = e.scrollWidth;
-			}
-		});
+		let JOBS = {};
+        renderAllJobs();
 	</script>
 </body>
 </html>

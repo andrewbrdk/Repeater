@@ -45,7 +45,7 @@ type Task struct {
 type TaskRun struct {
 	Name              string
 	cmd               string
-	renderedCmd       string
+	RenderedCmd       string
 	StartTime         time.Time
 	EndTime           time.Time
 	Status            RunStatus
@@ -269,9 +269,9 @@ func runCommand(tr *TaskRun) error {
 	}
 	tr.StartTime = time.Now()
 	tr.Attempt += tr.Attempt
-	tr.renderedCmd = sb.String()
+	tr.RenderedCmd = sb.String()
 	tr.Status = Running
-	output, err := executeCmd(tr.renderedCmd)
+	output, err := executeCmd(tr.RenderedCmd)
 	tr.lastOutput = output
 	tr.EndTime = time.Now()
 	tr.Status = RunSuccess
@@ -367,13 +367,11 @@ func httpIndex(w http.ResponseWriter, r *http.Request, template_data *HTMLTempla
 }
 
 func httpJobs(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	// todo: control fields
 	jData, err := json.Marshal(template_data.Jobs)
 	if err != nil {
 		http.Error(w, "Job not found", http.StatusNotFound)
 		return
 	}
-	//slog.Infof(string(jData))
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jData)
 }
