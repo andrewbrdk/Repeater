@@ -106,9 +106,10 @@
 			let data = await fetchJobs();
 			updateJOBS(data);
 			let divs = [];
-            JOBS['Jobs'].forEach((job, jobIndex) => {
-				divs.push(jobDiv(job, jobIndex));
-            });
+			//todo: async/await -> then?
+			for await (const [jobIndex, job] of JOBS['Jobs'].entries()) {
+				divs.push(await jobDiv(job, jobIndex));
+			}
 			const alljobs = document.getElementById('alljobs');
             alljobs.replaceChildren(...divs);
 			divs.forEach((d, _) => {
@@ -136,19 +137,19 @@
             });
 			JOBS.Jobs = JOBS.Jobs.slice(0, data.Jobs.length);
 		}
-		function jobDiv(job, jobIndex) {
+		async function jobDiv(job, jobIndex) {
 			const jobDiv = document.createElement('div');
             jobDiv.classList.add('job');
 			jobDiv.id = `job${jobIndex}`;
-			jobDiv.innerHTML = jobHTML(job, jobIndex);
+			jobDiv.innerHTML = await jobHTML(job, jobIndex);
 			return jobDiv;
 		}
-		function jobHTML(job, jobIndex) {
+		async function jobHTML(job, jobIndex) {
     		let html = `<table>`;
 			html += jobTableHeaderHTML(job, jobIndex);
 			html += jobTableTasksHTML(job, jobIndex);
 			html += `</table>`;
-			html += jobRunInfoHTML(job, jobIndex);
+			html += await jobRunInfoHTML(job, jobIndex);
 			return html;
 		}
 		function jobTableHeaderHTML(job, jobIndex) {
@@ -198,7 +199,7 @@
 			});
 			return html;
 		}
-		function jobRunInfoHTML(job, jobIndex) {
+		async function jobRunInfoHTML(job, jobIndex) {
 			let v = job.displaystate['visibility'];
 			let sr = job.displaystate['selected_run'];
 			let r = job.RunHistory[sr];
@@ -214,12 +215,17 @@
 			display_style = v && r && t ? 'block' : 'none';
 			const t_st = t ? formatDateTime(new Date(t['StartTime'])) : '';
 			const t_cmd = t ? t.RenderedCmd : '';
+			let last_output = ''
+			if (v && r && t) {
+				//todo: async/await -> then?
+				last_output = await getTaskLastOutput(jobIndex, sr, st);
+			}
 			html += `
 				<p style="display: ${display_style};">
 				Task started: ${t_st}
 				<button onclick="restartSelected(${jobIndex}, ${sr}, ${st})">Restart task</button>
  				</p>
-				<pre style="display: ${display_style};"><code>> ${t_cmd} </code>\n<samp> output </samp>
+				<pre style="display: ${display_style};"><code>> ${t_cmd} </code>\n<samp> ${last_output} </samp>
  				</pre>`;
 			return html;
 		}
@@ -228,35 +234,37 @@
 			const statusSymbols = ['■', '⨯', '◨', '□'];
 			return statusSymbols[runStatus] || '?';
 		}
-		function selectRun(jobIndex, runIndex, taskIndex) {
+		async function selectRun(jobIndex, runIndex, taskIndex) {
 			JOBS.Jobs[jobIndex].displaystate.visibility = true;
 			JOBS.Jobs[jobIndex].displaystate.selected_run = runIndex;
 			JOBS.Jobs[jobIndex].displaystate.selected_task = taskIndex;
-			var e = document.getElementById('job' + jobIndex);
-			let div = jobDiv(JOBS.Jobs[jobIndex], jobIndex);
+			var e = document.getElementById(`job${jobIndex}`);
+			let div = await jobDiv(JOBS.Jobs[jobIndex], jobIndex);
 			let s = e.scrollLeft;
 			e.parentNode.replaceChild(div, e);
 			div.scrollLeft = s;
 		}
 		async function onOff(job) {
-			let res = await fetch('/onoff?job=' + job);
-			// todo: return jobs in res
+			let res = await fetch(`/onoff?job=${job}`);
 			await renderAllJobs();
 		}
 		async function runNow(job) {
-			let res = await fetch('/runnow?job=' + job);
-			// todo: return jobs in res
+			let res = await fetch(`/runnow?job=${job}`);
 			await renderAllJobs();
 		}
 		async function restartSelected(job, run, task) {
-			let res = await fetch('/restart?job=' + job + '&run=' + run + '&task=' + task);
-			// todo: return jobs in res
+			let res = await fetch(`/restart?job=${job}&run=${run}&task=${task}`);
 			await renderAllJobs();
 		}
-		function showHide(jobIndex) {
+		async function getTaskLastOutput(job, run, task) {
+			let res = await fetch(`/lastoutput?job=${job}&run=${run}&task=${task}`);
+			let t = await res.text();
+			return t;
+		}
+		async function showHide(jobIndex) {
 			JOBS.Jobs[jobIndex].displaystate.visibility = !JOBS.Jobs[jobIndex].displaystate.visibility;
-			var e = document.getElementById('job' + jobIndex);
-			let div = jobDiv(JOBS.Jobs[jobIndex], jobIndex);
+			var e = document.getElementById(`job${jobIndex}`);
+			let div = await jobDiv(JOBS.Jobs[jobIndex], jobIndex);
 			let s = e.scrollLeft;
 			e.parentNode.replaceChild(div, e);
 			div.scrollLeft = s;

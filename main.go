@@ -341,6 +341,9 @@ func httpServer(jobs *AllJobs) {
 	http.HandleFunc("/runnow", func(w http.ResponseWriter, r *http.Request) {
 		httpRunNow(w, r, httpQPars, jobs)
 	})
+	http.HandleFunc("/lastoutput", func(w http.ResponseWriter, r *http.Request) {
+		httpLastOutput(w, r, httpQPars, jobs)
+	})
 	slog.Fatal(http.ListenAndServe(port, nil))
 }
 
@@ -412,6 +415,31 @@ func httpRunNow(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryPara
 		http.Error(w, "Job not found", http.StatusNotFound)
 	}
 	// todo: w.Write(json.Marshal(jobs))
+}
+
+func httpLastOutput(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, jobs *AllJobs) {
+	httpParseJobRunTask(r, httpQPars, jobs)
+	var jb *Job
+	jb = nil
+	if httpQPars.jobIndex != -1 {
+		jb = jobs.Jobs[httpQPars.jobIndex]
+	}
+	var rn *JobRun
+	rn = nil
+	if jb != nil && httpQPars.runIndex != -1 {
+		rn = jb.RunHistory[httpQPars.runIndex]
+	}
+	var t *TaskRun
+	t = nil
+	if rn != nil && httpQPars.taskIndex != -1 {
+		t = rn.TasksHistory[httpQPars.taskIndex]
+	}
+	if t != nil {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(t.lastOutput))
+	} else {
+		http.Error(w, "Task not found", http.StatusNotFound)
+	}
 }
 
 func httpParseJobRunTask(r *http.Request, httpQPars *HTTPQueryParams, jobs *AllJobs) {
