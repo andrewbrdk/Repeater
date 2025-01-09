@@ -131,6 +131,7 @@
 					d = {'visibility': false, 'selected_run': null, 'selected_task': null};
 				}
 				JOBS.Jobs[jobIndex] = job;
+				// todo: match by job id 
 				JOBS.Jobs[jobIndex].displaystate = d;
             });
 			JOBS.Jobs = JOBS.Jobs.slice(0, data.Jobs.length);
@@ -248,7 +249,7 @@
 			await renderAllJobs();
 		}
 		async function restartSelected(job, run, task) {
-			let res = await fetch('/restart?job=' + job + '&run=' + run + '&cmd=' + task);
+			let res = await fetch('/restart?job=' + job + '&run=' + run + '&task=' + task);
 			// todo: return jobs in res
 			await renderAllJobs();
 		}

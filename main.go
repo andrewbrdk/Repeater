@@ -239,7 +239,7 @@ func runJob(run *JobRun, jb *Job) error {
 	slog.Infof("Running '%s'", jb.Title)
 	var jobFail bool
 	for _, tr := range run.TasksHistory {
-		err := runCommand(tr)
+		err := runTask(tr)
 		if err != nil {
 			jobFail = true
 			break
@@ -254,7 +254,7 @@ func runJob(run *JobRun, jb *Job) error {
 	return nil
 }
 
-func runCommand(tr *TaskRun) error {
+func runTask(tr *TaskRun) error {
 	tmpl := texttemplate.New("tmpl")
 	tmpl, err := tmpl.Parse(tr.cmd)
 	if err != nil {
@@ -297,7 +297,7 @@ func restartJobRun(jb *Job, run *JobRun) {
 }
 
 func restartTaskRun(taskRun *TaskRun) {
-	runCommand(taskRun)
+	runTask(taskRun)
 	//todo: add error check
 }
 
@@ -318,45 +318,33 @@ func runNow(jb *Job) error {
 	return err
 }
 
-func (jb Job) CountFailed() int {
-	//todo: maintain counter?
-	f := 0
-	for _, h := range jb.RunHistory {
-		if h.Status == RunFailure {
-			f += 1
-		}
-	}
-	return f
-}
-
-type HTMLTemplateData struct {
-	job_idx int
-	run_idx int
-	cmd_idx int
-	Jobs    *AllJobs
+type HTTPQueryParams struct {
+	jobIndex  int
+	runIndex  int
+	taskIndex int
 }
 
 func httpServer(jobs *AllJobs) {
-	template_data := &HTMLTemplateData{Jobs: jobs}
+	httpQPars := new(HTTPQueryParams)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		httpIndex(w, r, template_data)
+		httpIndex(w, r)
 	})
 	http.HandleFunc("/jobs", func(w http.ResponseWriter, r *http.Request) {
-		httpJobs(w, r, template_data)
+		httpJobs(w, r, httpQPars, jobs)
 	})
 	http.HandleFunc("/onoff", func(w http.ResponseWriter, r *http.Request) {
-		httpOnOff(w, r, template_data)
+		httpOnOff(w, r, httpQPars, jobs)
 	})
 	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
-		httpRestart(w, r, template_data)
+		httpRestart(w, r, httpQPars, jobs)
 	})
 	http.HandleFunc("/runnow", func(w http.ResponseWriter, r *http.Request) {
-		httpRunNow(w, r, template_data)
+		httpRunNow(w, r, httpQPars, jobs)
 	})
 	slog.Fatal(http.ListenAndServe(port, nil))
 }
 
-func httpIndex(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
+func httpIndex(w http.ResponseWriter, r *http.Request) {
 	data, err := embedded.ReadFile("index.html")
 	if err != nil {
 		http.Error(w, "Error loading the page", http.StatusInternalServerError)
@@ -366,8 +354,8 @@ func httpIndex(w http.ResponseWriter, r *http.Request, template_data *HTMLTempla
 	w.Write(data)
 }
 
-func httpJobs(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	jData, err := json.Marshal(template_data.Jobs)
+func httpJobs(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, jobs *AllJobs) {
+	jData, err := json.Marshal(jobs)
 	if err != nil {
 		http.Error(w, "Job not found", http.StatusNotFound)
 		return
@@ -376,76 +364,79 @@ func httpJobs(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplat
 	w.Write(jData)
 }
 
-func httpOnOff(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	httpParseJobRunCmd(r, template_data)
-	err := jobOnOff(template_data.job_idx, template_data.Jobs)
+func httpOnOff(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, jobs *AllJobs) {
+	httpParseJobRunTask(r, httpQPars, jobs)
+	err := jobOnOff(httpQPars.jobIndex, jobs)
 	if err != nil {
 		http.Error(w, "Job not found", http.StatusNotFound)
 	}
+	// todo: w.Write(json.Marshal(jobs))
 }
 
-func httpRestart(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	httpParseJobRunCmd(r, template_data)
+func httpRestart(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, jobs *AllJobs) {
+	httpParseJobRunTask(r, httpQPars, jobs)
 	var jb *Job
 	jb = nil
-	if template_data.job_idx != -1 {
-		jb = template_data.Jobs.Jobs[template_data.job_idx]
+	if httpQPars.jobIndex != -1 {
+		jb = jobs.Jobs[httpQPars.jobIndex]
 	}
 	var rn *JobRun
 	rn = nil
-	if jb != nil && template_data.run_idx != -1 {
-		rn = jb.RunHistory[template_data.run_idx]
+	if jb != nil && httpQPars.runIndex != -1 {
+		rn = jb.RunHistory[httpQPars.runIndex]
 	}
-	var c *TaskRun
-	c = nil
-	if rn != nil && template_data.cmd_idx != -1 {
-		c = rn.TasksHistory[template_data.cmd_idx]
+	var t *TaskRun
+	t = nil
+	if rn != nil && httpQPars.taskIndex != -1 {
+		t = rn.TasksHistory[httpQPars.taskIndex]
 	}
-	if rn != nil && c != nil {
-		restartTaskRun(c)
+	if rn != nil && t != nil {
+		restartTaskRun(t)
 	} else if rn != nil {
 		restartJobRun(jb, rn)
 	} else {
 		http.Error(w, "JobRun or TaskRun not found", http.StatusNotFound)
 	}
+	// todo: w.Write(json.Marshal(jobs))
 }
 
-func httpRunNow(w http.ResponseWriter, r *http.Request, template_data *HTMLTemplateData) {
-	httpParseJobRunCmd(r, template_data)
+func httpRunNow(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, jobs *AllJobs) {
+	httpParseJobRunTask(r, httpQPars, jobs)
 	var jb *Job
 	jb = nil
-	if template_data.job_idx != -1 {
-		jb = template_data.Jobs.Jobs[template_data.job_idx]
+	if httpQPars.jobIndex != -1 {
+		jb = jobs.Jobs[httpQPars.jobIndex]
 	}
 	err := runNow(jb)
 	if err != nil {
 		http.Error(w, "Job not found", http.StatusNotFound)
 	}
+	// todo: w.Write(json.Marshal(jobs))
 }
 
-func httpParseJobRunCmd(r *http.Request, template_data *HTMLTemplateData) {
+func httpParseJobRunTask(r *http.Request, httpQPars *HTTPQueryParams, jobs *AllJobs) {
 	job_str := r.URL.Query().Get("job")
 	jb, err := strconv.Atoi(job_str)
 	if err != nil {
 		jb = -1
-	} else if jb < 0 || jb >= len(template_data.Jobs.Jobs) {
+	} else if jb < 0 || jb >= len(jobs.Jobs) {
 		jb = -1
 	}
-	template_data.job_idx = jb
+	httpQPars.jobIndex = jb
 	run_str := r.URL.Query().Get("run")
 	run, err := strconv.Atoi(run_str)
 	if err != nil {
 		run = -1
-	} else if jb != -1 && (run < 0 || run >= len(template_data.Jobs.Jobs[jb].RunHistory)) {
+	} else if jb != -1 && (run < 0 || run >= len(jobs.Jobs[jb].RunHistory)) {
 		run = -1
 	}
-	template_data.run_idx = run
-	cmd_str := r.URL.Query().Get("cmd")
-	cmd, err := strconv.Atoi(cmd_str)
+	httpQPars.runIndex = run
+	task_str := r.URL.Query().Get("task")
+	task, err := strconv.Atoi(task_str)
 	if err != nil {
-		cmd = -1
-	} else if jb != -1 && run != -1 && (cmd < 0 || cmd >= len(template_data.Jobs.Jobs[jb].RunHistory[run].TasksHistory)) {
-		cmd = -1
+		task = -1
+	} else if jb != -1 && run != -1 && (task < 0 || task >= len(jobs.Jobs[jb].RunHistory[run].TasksHistory)) {
+		task = -1
 	}
-	template_data.cmd_idx = cmd
+	httpQPars.taskIndex = task
 }
