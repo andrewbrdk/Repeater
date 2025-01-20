@@ -24,7 +24,7 @@ import (
 //go:embed index.html
 var embedded embed.FS
 
-// const conf_path = "./repeater.toml"
+// const confFile = "./repeater.toml"
 var conf Config
 
 type Config struct {
@@ -101,6 +101,23 @@ func initConfig(conf *Config) {
 	const jobsDir = "./examples/"
 	conf.port = port
 	conf.jobsDir = jobsDir
+	//
+	// fileData, err := os.ReadFile(confFile)
+	// if err != nil {
+	// 	slog.Errorf("Ignoring config file; Reading error: %w", err)
+	// }
+	// fconf := new(Config)
+	// err = toml.Unmarshal(fileData, &fconf)
+	// if err != nil {
+	// 	slog.Errorf("Ignoring config file; Parsing error: %w", err)
+	// }
+	//
+	if port := os.Getenv("REPEATER_PORT"); port != "" {
+		conf.port = port
+	}
+	if jobsDir := os.Getenv("REPEATER_JOBS_DIRECTORY"); jobsDir != "" {
+		conf.jobsDir = jobsDir
+	}
 }
 
 func scanAndScheduleJobs(jobs *AllJobs, c *cron.Cron) {
