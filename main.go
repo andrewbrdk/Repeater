@@ -21,12 +21,16 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-const port = ":8080"
-const jobsDir = "./examples/"
-const scanSchedule = "*/10 * * * * *"
-
 //go:embed index.html
 var embedded embed.FS
+
+// const conf_path = "./repeater.toml"
+var conf Config
+
+type Config struct {
+	port    string `toml:"port"`
+	jobsDir string `toml:"jobs_directory"`
+}
 
 type RunStatus int
 
@@ -81,6 +85,8 @@ type AllJobs struct {
 
 func main() {
 	var jobs AllJobs
+	const scanSchedule = "*/10 * * * * *"
+	initConfig(&conf)
 	c := cron.New(cron.WithSeconds())
 	c.AddFunc(
 		scanSchedule,
@@ -88,6 +94,13 @@ func main() {
 	)
 	c.Start()
 	httpServer(&jobs)
+}
+
+func initConfig(conf *Config) {
+	const port = ":8080"
+	const jobsDir = "./examples/"
+	conf.port = port
+	conf.jobsDir = jobsDir
 }
 
 func scanAndScheduleJobs(jobs *AllJobs, c *cron.Cron) {
@@ -112,7 +125,7 @@ func scanAndScheduleJobs(jobs *AllJobs, c *cron.Cron) {
 }
 
 func scanFiles(files map[string][16]byte) error {
-	dir := jobsDir
+	dir := conf.jobsDir
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			slog.Errorf("Error accessing path %s: %v\n", path, err)
@@ -344,7 +357,7 @@ func httpServer(jobs *AllJobs) {
 	http.HandleFunc("/lastoutput", func(w http.ResponseWriter, r *http.Request) {
 		httpLastOutput(w, r, httpQPars, jobs)
 	})
-	slog.Fatal(http.ListenAndServe(port, nil))
+	slog.Fatal(http.ListenAndServe(conf.port, nil))
 }
 
 func httpIndex(w http.ResponseWriter, r *http.Request) {
