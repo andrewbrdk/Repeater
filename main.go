@@ -24,8 +24,7 @@ import (
 //go:embed index.html
 var embedded embed.FS
 
-// const confFile = "./repeater.toml"
-var conf Config
+var CONF Config
 
 type Config struct {
 	port    string `toml:"port"`
@@ -86,7 +85,7 @@ type AllJobs struct {
 func main() {
 	var jobs AllJobs
 	const scanSchedule = "*/10 * * * * *"
-	initConfig(&conf)
+	initConfig()
 	c := cron.New(cron.WithSeconds())
 	c.AddFunc(
 		scanSchedule,
@@ -96,27 +95,14 @@ func main() {
 	httpServer(&jobs)
 }
 
-func initConfig(conf *Config) {
-	const port = ":8080"
-	const jobsDir = "./examples/"
-	conf.port = port
-	conf.jobsDir = jobsDir
-	//
-	// fileData, err := os.ReadFile(confFile)
-	// if err != nil {
-	// 	slog.Errorf("Ignoring config file; Reading error: %w", err)
-	// }
-	// fconf := new(Config)
-	// err = toml.Unmarshal(fileData, &fconf)
-	// if err != nil {
-	// 	slog.Errorf("Ignoring config file; Parsing error: %w", err)
-	// }
-	//
+func initConfig() {
+	CONF.port = ":8080"
+	CONF.jobsDir = "./examples/"
 	if port := os.Getenv("REPEATER_PORT"); port != "" {
-		conf.port = port
+		CONF.port = port
 	}
 	if jobsDir := os.Getenv("REPEATER_JOBS_DIRECTORY"); jobsDir != "" {
-		conf.jobsDir = jobsDir
+		CONF.jobsDir = jobsDir
 	}
 }
 
@@ -142,8 +128,7 @@ func scanAndScheduleJobs(jobs *AllJobs, c *cron.Cron) {
 }
 
 func scanFiles(files map[string][16]byte) error {
-	dir := conf.jobsDir
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(CONF.jobsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			slog.Errorf("Error accessing path %s: %v\n", path, err)
 			return err
@@ -374,7 +359,7 @@ func httpServer(jobs *AllJobs) {
 	http.HandleFunc("/lastoutput", func(w http.ResponseWriter, r *http.Request) {
 		httpLastOutput(w, r, httpQPars, jobs)
 	})
-	slog.Fatal(http.ListenAndServe(conf.port, nil))
+	slog.Fatal(http.ListenAndServe(CONF.port, nil))
 }
 
 func httpIndex(w http.ResponseWriter, r *http.Request) {

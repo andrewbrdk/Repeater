@@ -28,11 +28,10 @@ ch-ui: [http://localhost:8001](http://localhost:8001),
 ClickHouse: [http://localhost:8123](http://localhost:8123) and [http://localhost:9000](http://localhost:9000).
 
 
-[Configuration](https://github.com/andrewbrdk/Repeater/blob/main/main.go#L25):
-```go
-const port = ":8080"                   // web server port  
-const jobsDir = "./examples/"          // jobs directory
-const scanSchedule = "*/10 * * * * *"  // jobs directory rescanning schedule
+Optional environmental variables:
+```bash
+REPEATER_PORT=":8080"                   # web server port  
+REPEATER_JOBS_DIRECTORY="./examples/"   # jobs directory
 ```
 
 Task `cmd` [parameters](https://github.com/andrewbrdk/Repeater/blob/main/examples/template.job):

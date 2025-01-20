@@ -12,6 +12,8 @@ services:
       #- ./examples:/app/jobs
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
+    environment:
+      REPEATER_JOBS_DIRECTORY: /app/examples
 
   clickhouse:
     image: clickhouse/clickhouse-server:latest

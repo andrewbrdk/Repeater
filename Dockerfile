@@ -18,7 +18,6 @@ RUN rm /app/requirements.txt
 ADD main.go go.mod index.html /app/
 RUN mkdir -p /app/examples
 #RUN mkdir -p /app/jobs
-#RUN sed -ie 's|const jobsDir = "./examples/"|const jobsDir = "./jobs/"|' /app/main.go 
 
 WORKDIR /app
 RUN go get repeater
