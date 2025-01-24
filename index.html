@@ -55,6 +55,17 @@
 			text-align: center;
 			width: 1.2rem;
 		}
+		[tooltip]:hover::after {
+			display: block;
+			white-space: pre-wrap;
+			text-align: left;
+			position: absolute;
+			content: attr(tooltip);
+			border: 1px solid black;
+			background: #eee;
+			padding: .25em;
+			z-index: 1;
+		}
 		th.selected, td.selected {
 			border-bottom-style: solid;
 			border-width: medium;
@@ -160,9 +171,13 @@
     			<th class="task_names"><strong>${job.Title}</strong></th>`;
         	job.RunHistory.forEach((run, runIndex) => {
 				let selected = (job.displaystate['visibility'] && job.displaystate['selected_run'] == runIndex && job.displaystate['selected_task'] === null) ? 'selected' : '';
+				let tooltip = ''
+					tooltip += `Scheduled: ${formatDateTime(new Date(run.ScheduledTime))} \n`
+					tooltip += `Started: ${formatDateTime(new Date(run.StartTime))} \n`
+					tooltip += `Finished: ${formatDateTime(new Date(run.EndTime))}`
 				html += `
 					<th id="job${jobIndex}run${runIndex}" class="states ${selected}">
-					<a href="/#job${jobIndex}run${runIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, null);return false;">${getHTMLStatus(run.Status)}</a>
+					<a href="/#job${jobIndex}run${runIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, null);return false;" tooltip="${tooltip}">${getHTMLStatus(run.Status)}</a>
 					</th>`;
     		});
 			html += `
