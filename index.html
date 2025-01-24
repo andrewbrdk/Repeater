@@ -171,10 +171,7 @@
     			<th class="task_names"><strong>${job.Title}</strong></th>`;
         	job.RunHistory.forEach((run, runIndex) => {
 				let selected = (job.displaystate['visibility'] && job.displaystate['selected_run'] == runIndex && job.displaystate['selected_task'] === null) ? 'selected' : '';
-				let tooltip = ''
-					tooltip += `Scheduled: ${formatDateTime(new Date(run.ScheduledTime))} \n`
-					tooltip += `Started: ${formatDateTime(new Date(run.StartTime))} \n`
-					tooltip += `Finished: ${formatDateTime(new Date(run.EndTime))}`
+				let tooltip = `Scheduled: ${formatDateTime(new Date(run.ScheduledTime))}`
 				html += `
 					<th id="job${jobIndex}run${runIndex}" class="states ${selected}">
 					<a href="/#job${jobIndex}run${runIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, null);return false;" tooltip="${tooltip}">${getHTMLStatus(run.Status)}</a>
