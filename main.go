@@ -305,8 +305,14 @@ func executeCmd(command string) (string, error) {
 
 func restartJobRun(jb *Job, run *JobRun) {
 	run.Status = NoRun
+	run.StartTime = time.Time{}
+	run.EndTime = time.Time{}
 	for _, tr := range run.TasksHistory {
 		tr.Status = NoRun
+		tr.StartTime = time.Time{}
+		tr.EndTime = time.Time{}
+		tr.RenderedCmd = ""
+		tr.lastOutput = ""
 	}
 	runJob(run, jb)
 }
