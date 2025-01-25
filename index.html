@@ -219,13 +219,13 @@
 			const r_sch = r ? formatDateTime(new Date(r['ScheduledTime'])) : '';
 			let html = `
 				<p style="display: ${display_style};">
-				Run scheduled: ${r_sch}
+				Job scheduled: ${r_sch}
 				<button onclick="restartSelected(${jobIndex}, ${sr}, null)">Restart job</button>
 				</p>`;
 			let st = job.displaystate['selected_task'];
 			let t = r ? r.TasksHistory[st] : null;
 			display_style = v && r && t ? 'block' : 'none';
-			const t_st = t ? formatDateTime(new Date(t['StartTime'])) : '';
+			const t_st = t && t['StartTime'] != "0001-01-01T00:00:00Z" ? formatDateTime(new Date(t['StartTime'])) : '-';
 			const t_cmd = t ? t.RenderedCmd : '';
 			let last_output = ''
 			if (v && r && t) {
