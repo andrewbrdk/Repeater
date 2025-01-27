@@ -321,9 +321,27 @@ func restartJobRun(jb *Job, run *JobRun) {
 	runJob(run, jb)
 }
 
-func restartTaskRun(taskRun *TaskRun) {
+func restartTaskRun(taskRun *TaskRun, jobRun *JobRun) {
 	runTask(taskRun)
+	updateJobRunStatusFromTasks(jobRun)
 	//todo: add error check
+}
+
+func updateJobRunStatusFromTasks(jobRun *JobRun) {
+	//todo: simplify
+	for _, tr := range jobRun.TasksHistory {
+		if tr.Status == RunFailure {
+			jobRun.Status = RunFailure
+			return
+		} else if tr.Status == Running {
+			jobRun.Status = Running
+			return
+		} else if tr.Status == NoRun {
+			jobRun.Status = RunFailure
+			return
+		}
+	}
+	jobRun.Status = RunSuccess
 }
 
 func jobOnOff(jobidx int, JC *JobsAndCron) error {
@@ -424,7 +442,7 @@ func httpRestart(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryPar
 		t = rn.TasksHistory[httpQPars.taskIndex]
 	}
 	if rn != nil && t != nil {
-		restartTaskRun(t)
+		restartTaskRun(t, rn)
 	} else if rn != nil {
 		restartJobRun(jb, rn)
 	} else {
