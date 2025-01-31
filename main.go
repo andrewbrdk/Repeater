@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/md5"
+	"crypto/rand"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -19,16 +20,20 @@ import (
 	"github.com/gookit/slog"
 	hcron "github.com/lnquy/cron"
 	"github.com/robfig/cron/v3"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 //go:embed index.html
 var embedded embed.FS
 
+var jwtSecretKey []byte
+
 var CONF Config
 
 type Config struct {
-	port    string
-	jobsDir string
+	port     string
+	jobsDir  string
+	password string
 }
 
 type RunStatus int
@@ -89,6 +94,7 @@ func main() {
 	var JC JobsAndCron
 	const scanSchedule = "*/10 * * * * *"
 	initConfig()
+	jwtSecretKey = generateRandomKey(32)
 	JC.cron = cron.New(cron.WithSeconds())
 	JC.cron.AddFunc(
 		scanSchedule,
@@ -101,12 +107,24 @@ func main() {
 func initConfig() {
 	CONF.port = ":8080"
 	CONF.jobsDir = "./examples/"
+	CONF.password = ""
 	if port := os.Getenv("REPEATER_PORT"); port != "" {
 		CONF.port = port
 	}
 	if jobsDir := os.Getenv("REPEATER_JOBS_DIRECTORY"); jobsDir != "" {
 		CONF.jobsDir = jobsDir
 	}
+	CONF.password = os.Getenv("REPEATER_PASSWORD")
+}
+
+func generateRandomKey(size int) []byte {
+	key := make([]byte, size)
+	_, err := rand.Read(key)
+	if err != nil {
+		slog.Error("Failed to generate a JWT secret key. Aborting.")
+		os.Exit(1)
+	}
+	return key
 }
 
 func scanAndScheduleJobs(JC *JobsAndCron) {
@@ -374,9 +392,8 @@ type HTTPQueryParams struct {
 
 func httpServer(JC *JobsAndCron) {
 	httpQPars := new(HTTPQueryParams)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		httpIndex(w, r)
-	})
+	http.HandleFunc("/", httpIndex)
+	http.HandleFunc("/login", httpLogin)
 	http.HandleFunc("/jobs", func(w http.ResponseWriter, r *http.Request) {
 		httpJobs(w, r, httpQPars, JC)
 	})
@@ -405,10 +422,72 @@ func httpIndex(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
+func httpLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+	var creds struct {
+		Password string `json:"password"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&creds)
+	if err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+	if creds.Password != CONF.password {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+	expirationTime := time.Now().Add(15 * time.Minute)
+	claims := jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(expirationTime),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtSecretKey)
+	if err != nil {
+		http.Error(w, "Failed to create token", http.StatusInternalServerError)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    tokenString,
+		Expires:  expirationTime,
+		HttpOnly: true,
+	})
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Login successful!"))
+}
+
+func httpCheckAuth(w http.ResponseWriter, r *http.Request) (error, int, string) {
+	cookie, err := r.Cookie("token")
+	if err != nil {
+		if err == http.ErrNoCookie {
+			return err, http.StatusUnauthorized, "Unauthorized"
+		}
+		return err, http.StatusBadRequest, "Bad request"
+	}
+	//todo: simplify
+	tokenStr := cookie.Value
+	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+		return jwtSecretKey, nil
+	})
+	if err != nil || !token.Valid {
+		return err, http.StatusUnauthorized, "Unauthorized"
+	}
+	return nil, http.StatusOK, "Ok"
+}
+
 func httpJobs(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
+	err, code, msg := httpCheckAuth(w, r)
+	if err != nil {
+		http.Error(w, msg, code)
+		return
+	}
 	jData, err := json.Marshal(JC)
 	if err != nil {
-		http.Error(w, "Job not found", http.StatusNotFound)
+		slog.Error(err)
+		http.Error(w, "No Jobs Found", http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -416,15 +495,27 @@ func httpJobs(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams
 }
 
 func httpOnOff(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
+	err, code, msg := httpCheckAuth(w, r)
+	if err != nil {
+		http.Error(w, msg, code)
+		return
+	}
 	httpParseJobRunTask(r, httpQPars, JC)
-	err := jobOnOff(httpQPars.jobIndex, JC)
+	err = jobOnOff(httpQPars.jobIndex, JC)
 	if err != nil {
 		http.Error(w, "Job not found", http.StatusNotFound)
+		return
 	}
 	// todo: w.Write(json.Marshal(JC))
+	w.WriteHeader(http.StatusOK)
 }
 
 func httpRestart(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
+	err, code, msg := httpCheckAuth(w, r)
+	if err != nil {
+		http.Error(w, msg, code)
+		return
+	}
 	httpParseJobRunTask(r, httpQPars, JC)
 	var jb *Job
 	jb = nil
@@ -447,25 +538,39 @@ func httpRestart(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryPar
 		restartJobRun(jb, rn)
 	} else {
 		http.Error(w, "JobRun or TaskRun not found", http.StatusNotFound)
+		return
 	}
 	// todo: w.Write(json.Marshal(JC))
+	w.WriteHeader(http.StatusOK)
 }
 
 func httpRunNow(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
+	err, code, msg := httpCheckAuth(w, r)
+	if err != nil {
+		http.Error(w, msg, code)
+		return
+	}
 	httpParseJobRunTask(r, httpQPars, JC)
 	var jb *Job
 	jb = nil
 	if httpQPars.jobIndex != -1 {
 		jb = JC.Jobs[httpQPars.jobIndex]
 	}
-	err := runNow(jb)
+	err = runNow(jb)
 	if err != nil {
 		http.Error(w, "Job not found", http.StatusNotFound)
+		return
 	}
 	// todo: w.Write(json.Marshal(JC))
+	w.WriteHeader(http.StatusOK)
 }
 
 func httpLastOutput(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
+	err, code, msg := httpCheckAuth(w, r)
+	if err != nil {
+		http.Error(w, msg, code)
+		return
+	}
 	httpParseJobRunTask(r, httpQPars, JC)
 	var jb *Job
 	jb = nil
@@ -482,12 +587,12 @@ func httpLastOutput(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQuery
 	if rn != nil && httpQPars.taskIndex != -1 {
 		t = rn.TasksHistory[httpQPars.taskIndex]
 	}
-	if t != nil {
-		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(t.lastOutput))
-	} else {
+	if t == nil {
 		http.Error(w, "Task not found", http.StatusNotFound)
+		return
 	}
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(t.lastOutput))
 }
 
 func httpParseJobRunTask(r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {

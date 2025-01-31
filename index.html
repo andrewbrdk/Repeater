@@ -105,17 +105,69 @@
 			display: block;
 			font-size: 1.2em;
 		}
+		#login {
+			display: block;
+			text-align: center;
+		}
+		form {
+			display: inline-block;
+			margin-left: auto;
+			margin-right: auto;
+			text-align: left;
+		}
 	</style>
 </head>
 <body>
     <h1><a href="/">Repeater</a></h1>
+    <div id="login" style="display: none;">
+    <form>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required>
+        <button type="button" onclick="submitLogin();">Login</button>
+        <br/>
+        <div id="invalidpassword" style="display: none;">Invalid Password</div>
+    </form>
+    </div>
     <div id="alljobs">
-        <!-- dynamic rendering -->
+	<!-- dynamic rendering -->
     </div>
 	<script>
-		async function renderAllJobs() {
-			let data = await fetchJobs();
-			updateJOBS(data);
+		async function renderPage() {
+			let res = await fetch('/jobs', {credentials: 'include'});
+			const statusCode = res.status;
+			if (statusCode == 200) { // ok
+				document.getElementById("login").style.display = "none";
+				document.getElementById("alljobs").style.display = "block";
+				let d = await res.json();
+				renderAllJobs(d)
+			} else if (statusCode == 401) { // unauthorized
+				document.getElementById("login").style.display = "block";
+				document.getElementById("alljobs").style.display = "none";
+			} else { // other
+				//internal error
+				document.getElementById("login").style.display = "block";
+				document.getElementById("alljobs").style.display = "none";
+				alert("internal error");
+			}
+		}
+		async function submitLogin() {
+            const password = document.getElementById('password').value;
+            const response = await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ password }),
+            });
+            if (response.ok) {
+				document.getElementById("invalidpassword").style.display = "none";
+                renderPage();
+            } else {
+                alert('Invalid credentials. Try again.');
+                document.getElementById("invalidpassword").style.display = "inline";
+            }
+		}
+		async function renderAllJobs(jobs_data) {
+			updateJOBS(jobs_data);
 			let divs = [];
 			//todo: async/await -> then?
 			for await (const [jobIndex, job] of JOBS['Jobs'].entries()) {
@@ -127,11 +179,12 @@
 				d.scrollLeft = d.scrollWidth;
 			});
         }
-		async function fetchJobs() {
-			let res = await fetch('/jobs');
-			let d = await res.json();
-			return d;
-        }
+		// async function fetchJobs() {
+		// 	let res = await fetch('/jobs');
+		// 	const statusCode = res.status;
+		// 	let d = await res.json();
+		// 	return d;
+		// }
 		function updateJOBS(data) {
 			JOBS.Jobs = JOBS.Jobs || []
 			data.Jobs.forEach((job, jobIndex) => {
@@ -264,15 +317,15 @@
 		}
 		async function onOff(job) {
 			let res = await fetch(`/onoff?job=${job}`);
-			await renderAllJobs();
+			await renderPage();
 		}
 		async function runNow(job) {
 			let res = await fetch(`/runnow?job=${job}`);
-			await renderAllJobs();
+			await renderPage();
 		}
 		async function restartSelected(job, run, task) {
 			let res = await fetch(`/restart?job=${job}&run=${run}&task=${task}`);
-			await renderAllJobs();
+			await renderPage();
 		}
 		async function getTaskLastOutput(job, run, task) {
 			let res = await fetch(`/lastoutput?job=${job}&run=${run}&task=${task}`);
@@ -298,7 +351,7 @@
 			);
 		}
 		let JOBS = {};
-        renderAllJobs();
+        renderPage();
 	</script>
 </body>
 </html>
