@@ -14,6 +14,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
     environment:
       REPEATER_JOBS_DIRECTORY: /app/examples
+      #REPEATER_PASSWORD: "qwerty"
 
   clickhouse:
     image: clickhouse/clickhouse-server:latest

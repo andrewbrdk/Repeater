@@ -113,14 +113,18 @@
 			display: inline-block;
 			margin-left: auto;
 			margin-right: auto;
-			text-align: left;
+			text-align: center;
+		}
+		#invalidpassword {
+			font-weight: bold;
+			color: black;
 		}
 	</style>
 </head>
 <body>
     <h1><a href="/">Repeater</a></h1>
     <div id="login" style="display: none;">
-    <form>
+    <form onsubmit="submitLogin(); return false;">
         <label for="password">Password:</label>
         <input type="password" id="password" name="password" required>
         <button type="button" onclick="submitLogin();">Login</button>
@@ -129,7 +133,7 @@
     </form>
     </div>
     <div id="alljobs">
-	<!-- dynamic rendering -->
+		<!-- dynamic rendering -->
     </div>
 	<script>
 		async function renderPage() {
@@ -162,7 +166,6 @@
 				document.getElementById("invalidpassword").style.display = "none";
                 renderPage();
             } else {
-                alert('Invalid credentials. Try again.');
                 document.getElementById("invalidpassword").style.display = "inline";
             }
 		}
