@@ -31,6 +31,7 @@ ClickHouse: [http://localhost:8123](http://localhost:8123) and [http://localhost
 Optional environmental variables:
 ```bash
 REPEATER_PORT=":8080"                   # web server port  
+REPEATER_PASSWORD=""                    # web auth password
 REPEATER_JOBS_DIRECTORY="./examples/"   # jobs directory
 ```
 

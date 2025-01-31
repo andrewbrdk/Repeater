@@ -460,6 +460,9 @@ func httpLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func httpCheckAuth(w http.ResponseWriter, r *http.Request) (error, int, string) {
+	if CONF.password == "" {
+		return nil, http.StatusOK, "Ok"
+	}
 	cookie, err := r.Cookie("token")
 	if err != nil {
 		if err == http.ErrNoCookie {
@@ -467,7 +470,6 @@ func httpCheckAuth(w http.ResponseWriter, r *http.Request) (error, int, string) 
 		}
 		return err, http.StatusBadRequest, "Bad request"
 	}
-	//todo: simplify
 	tokenStr := cookie.Value
 	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
 		return jwtSecretKey, nil
@@ -475,6 +477,7 @@ func httpCheckAuth(w http.ResponseWriter, r *http.Request) (error, int, string) 
 	if err != nil || !token.Valid {
 		return err, http.StatusUnauthorized, "Unauthorized"
 	}
+	//todo: prolong token
 	return nil, http.StatusOK, "Ok"
 }
 
