@@ -15,9 +15,9 @@ import (
 	"strings"
 	texttemplate "text/template"
 	"time"
+	"log" //todo: use log/slog
 
 	"github.com/BurntSushi/toml"
-	"github.com/gookit/slog"
 	hcron "github.com/lnquy/cron"
 	"github.com/robfig/cron/v3"
 	"github.com/golang-jwt/jwt/v5"
@@ -27,6 +27,11 @@ import (
 var embedded embed.FS
 
 var jwtSecretKey []byte
+
+var infoLog *log.Logger
+var errorLog *log.Logger
+var webLog *log.Logger
+var webLogBuf strings.Builder
 
 var CONF Config
 
@@ -95,6 +100,9 @@ func main() {
 	const scanSchedule = "*/10 * * * * *"
 	initConfig()
 	jwtSecretKey = generateRandomKey(32)
+	infoLog = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+	errorLog = log.New(os.Stdout, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
+	webLog = log.New(&webLogBuf, "", log.Ldate|log.Ltime)
 	JC.cron = cron.New(cron.WithSeconds())
 	JC.cron.AddFunc(
 		scanSchedule,
@@ -121,7 +129,7 @@ func generateRandomKey(size int) []byte {
 	key := make([]byte, size)
 	_, err := rand.Read(key)
 	if err != nil {
-		slog.Error("Failed to generate a JWT secret key. Aborting.")
+		errorLog.Printf("Failed to generate a JWT secret key. Aborting.")
 		os.Exit(1)
 	}
 	return key
@@ -130,17 +138,19 @@ func generateRandomKey(size int) []byte {
 func scanAndScheduleJobs(JC *JobsAndCron) {
 	files := make(map[string][16]byte)
 	err := scanFiles(files)
+	webLogBuf.Reset()
 	if err != nil {
-		slog.Errorf("Errors while reading files")
+		errorLog.Printf("Errors while reading files: %s", err)
+		webLog.Printf("Errors while reading files: %s", err)
 	}
 	removeJobsWithoutFiles(files, JC)
 	for f := range files {
-		slog.Infof("Loading %s", f)
+		infoLog.Printf("Loading %s", f)
 		jb, err := processJobFile(f)
 		if jb != nil && err == nil {
 			scheduleJob(jb, JC)
 		} else {
-			slog.Infof("Skipping %s", f)
+			infoLog.Printf("Skipping %s", f)
 		}
 	}
 	sort.SliceStable(JC.Jobs, func(i, j int) bool {
@@ -151,13 +161,13 @@ func scanAndScheduleJobs(JC *JobsAndCron) {
 func scanFiles(files map[string][16]byte) error {
 	err := filepath.Walk(CONF.jobsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			slog.Errorf("Error accessing path %s: %v\n", path, err)
+			errorLog.Printf("Error accessing path %s: %v\n", path, err)
 			return err
 		}
 		if !info.IsDir() && filepath.Ext(path) == ".job" {
 			f, err := os.ReadFile(path)
 			if err != nil {
-				slog.Errorf("Error reading file %s: %v\n", path, err)
+				errorLog.Printf("Error reading file %s: %v\n", path, err)
 				return err
 			}
 			files[path] = md5.Sum(f)
@@ -173,13 +183,13 @@ func removeJobsWithoutFiles(files map[string][16]byte, JC *JobsAndCron) {
 	for idx, jb := range JC.Jobs {
 		md5, haskey := files[jb.file]
 		if !haskey {
-			slog.Infof("Marking %s for deletion", jb.Title)
+			infoLog.Printf("Marking %s for deletion", jb.Title)
 			toremove = append(toremove, idx)
 		} else if md5 != jb.md5 {
-			slog.Infof("File %s has changed, marking for reloading", jb.file)
+			infoLog.Printf("File %s has changed, marking for reloading", jb.file)
 			toremove = append(toremove, idx)
 		} else if md5 == jb.md5 {
-			slog.Infof("File %s has not changed, skipping", jb.file)
+			infoLog.Printf("File %s has not changed, skipping", jb.file)
 			delete(files, jb.file)
 		} else {
 			panic("This is not supposed to happen")
@@ -207,14 +217,16 @@ func processJobFile(filePath string) (*Job, error) {
 	jb.OnOff = false
 	f, err := os.ReadFile(filePath)
 	if err != nil {
-		slog.Errorf("Error reading file %s: %v\n", filePath, err)
+		errorLog.Printf("Error reading file %s: %v\n", filePath, err)
+		webLog.Printf("Error reading file %s: %v\n", filePath, err)
 		return nil, err
 	}
 	jb.md5 = md5.Sum(f)
 	jb.RunHistory = make([]*JobRun, 0)
 	err = toml.Unmarshal(f, &jb)
 	if err != nil {
-		slog.Errorf("Error parsing file %s: %v\n", filePath, err)
+		errorLog.Printf("Error parsing file %s: %v\n", filePath, err)
+		webLog.Printf("Error parsing file %s: %v\n", filePath, err)
 		return nil, err
 	}
 	exprDesc, _ := hcron.NewDescriptor(hcron.Use24HourTimeFormat(true))
@@ -231,12 +243,12 @@ func scheduleJob(jb *Job, JC *JobsAndCron) {
 		jb.Cron,
 		func() { runScheduled(jb, JC.cron) },
 	)
-	slog.Infof("Added job '%s' from file '%s'", jb.Title, jb.file)
+	infoLog.Printf("Added job '%s' from file '%s'", jb.Title, jb.file)
 }
 
 func runScheduled(jb *Job, c *cron.Cron) {
 	if !jb.OnOff {
-		slog.Infof("Skipping '%s'", jb.Title)
+		infoLog.Printf("Skipping '%s'", jb.Title)
 		return
 	}
 	run := initRun(jb, c)
@@ -273,7 +285,7 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 
 func runJob(run *JobRun, jb *Job) error {
 	run.Status = Running
-	slog.Infof("Running '%s'", jb.Title)
+	infoLog.Printf("Running '%s'", jb.Title)
 	var jobFail bool
 	for _, tr := range run.TasksHistory {
 		err := runTask(tr)
@@ -295,13 +307,13 @@ func runTask(tr *TaskRun) error {
 	tmpl := texttemplate.New("tmpl")
 	tmpl, err := tmpl.Parse(tr.cmd)
 	if err != nil {
-		slog.Errorf("Error parsing command template '%s'-'%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, tr.cmd, err)
+		errorLog.Printf("Error parsing command template '%s'-'%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, tr.cmd, err)
 		return err
 	}
 	sb := new(strings.Builder)
 	err = tmpl.Execute(sb, tr.cmdTemplateParams)
 	if err != nil {
-		slog.Errorf("Error rendering command template '%s'-'%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, tr.cmd, err)
+		errorLog.Printf("Error rendering command template '%s'-'%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, tr.cmd, err)
 		return err
 	}
 	tr.StartTime = time.Now()
@@ -313,7 +325,7 @@ func runTask(tr *TaskRun) error {
 	tr.EndTime = time.Now()
 	tr.Status = RunSuccess
 	if err != nil {
-		slog.Errorf("Error executing '%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, err)
+		errorLog.Printf("Error executing '%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, err)
 		tr.Status = RunFailure
 	}
 	return err
@@ -364,7 +376,7 @@ func updateJobRunStatusFromTasks(jobRun *JobRun) {
 
 func jobOnOff(jobidx int, JC *JobsAndCron) error {
 	if jobidx >= len(JC.Jobs) || jobidx < 0 {
-		slog.Errorf("incorrect job index %v", jobidx)
+		errorLog.Printf("incorrect job index %v", jobidx)
 		return errors.New("incorrect job index")
 	}
 	jb := JC.Jobs[jobidx]
@@ -374,7 +386,7 @@ func jobOnOff(jobidx int, JC *JobsAndCron) error {
 	} else {
 		jb.NextScheduled = time.Time{}
 	}
-	slog.Infof("Toggled state of %s to %v", jb.Title, jb.OnOff)
+	infoLog.Printf("Toggled state of %s to %v", jb.Title, jb.OnOff)
 	return nil
 }
 
@@ -409,7 +421,8 @@ func httpServer(JC *JobsAndCron) {
 	http.HandleFunc("/lastoutput", func(w http.ResponseWriter, r *http.Request) {
 		httpLastOutput(w, r, httpQPars, JC)
 	})
-	slog.Fatal(http.ListenAndServe(CONF.port, nil))
+	http.HandleFunc("/parsingerrors", httpParsingErrors)
+	log.Fatal(http.ListenAndServe(CONF.port, nil))
 }
 
 func httpIndex(w http.ResponseWriter, r *http.Request) {
@@ -489,7 +502,7 @@ func httpJobs(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams
 	}
 	jData, err := json.Marshal(JC)
 	if err != nil {
-		slog.Error(err)
+		errorLog.Println(err)
 		http.Error(w, "No Jobs Found", http.StatusNotFound)
 		return
 	}
@@ -623,4 +636,15 @@ func httpParseJobRunTask(r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAn
 		task = -1
 	}
 	httpQPars.taskIndex = task
+}
+
+func httpParsingErrors(w http.ResponseWriter, r *http.Request) {
+	err, code, msg := httpCheckAuth(w, r)
+	if err != nil {
+		http.Error(w, msg, code)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html")
+	//todo: unnecessary conversions?
+	w.Write([]byte(webLogBuf.String()))
 }

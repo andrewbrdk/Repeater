@@ -98,12 +98,13 @@
 			color: black;
 			text-decoration: none;
 		}
-		pre {
+		pre.taskruninfo {
 			background-color: #eee;
 			font-family: courier, monospace;
 			padding: 0 3px;
 			display: block;
 			font-size: 1.2em;
+			white-space: pre-wrap;
 		}
 		#login {
 			display: block;
@@ -119,6 +120,15 @@
 			font-weight: bold;
 			color: black;
 		}
+		#parsingerrors {
+			background-color: #eee;
+		}
+		#parsingerrors pre {
+			white-space: pre-wrap;
+			font-family: monospace;
+			padding: 0 3px;
+			font-size: 1.2em;
+		}
 	</style>
 </head>
 <body>
@@ -132,25 +142,31 @@
         <div id="invalidpassword" style="display: none;">Invalid Password</div>
     </form>
     </div>
+    <div id="parsingerrors" style="display: none;">
+		<h4>Jobs Parsing Errors:</h4>
+		<pre id="parsingerrors_pre"></pre>
+    </div>
     <div id="alljobs">
-		<!-- dynamic rendering -->
     </div>
 	<script>
 		async function renderPage() {
+			//todo: rearrange
 			let res = await fetch('/jobs', {credentials: 'include'});
 			const statusCode = res.status;
 			if (statusCode == 200) { // ok
 				document.getElementById("login").style.display = "none";
 				document.getElementById("alljobs").style.display = "block";
 				let d = await res.json();
-				renderAllJobs(d)
+				renderAllJobs(d);
+				renderParsingErrors();
 			} else if (statusCode == 401) { // unauthorized
 				document.getElementById("login").style.display = "block";
 				document.getElementById("alljobs").style.display = "none";
+				document.getElementById("parsingerrors").style.display = "none";
 			} else { // other
-				//internal error
 				document.getElementById("login").style.display = "block";
 				document.getElementById("alljobs").style.display = "none";
+				document.getElementById("parsingerrors").style.display = "none";
 				alert("internal error");
 			}
 		}
@@ -172,7 +188,6 @@
 		async function renderAllJobs(jobs_data) {
 			updateJOBS(jobs_data);
 			let divs = [];
-			//todo: async/await -> then?
 			for await (const [jobIndex, job] of JOBS['Jobs'].entries()) {
 				divs.push(await jobDiv(job, jobIndex));
 			}
@@ -182,12 +197,6 @@
 				d.scrollLeft = d.scrollWidth;
 			});
         }
-		// async function fetchJobs() {
-		// 	let res = await fetch('/jobs');
-		// 	const statusCode = res.status;
-		// 	let d = await res.json();
-		// 	return d;
-		// }
 		function updateJOBS(data) {
 			JOBS.Jobs = JOBS.Jobs || []
 			data.Jobs.forEach((job, jobIndex) => {
@@ -262,7 +271,6 @@
 						<a href="/#job${jobIndex}run${runIndex}task${taskIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, ${taskIndex});return false;">${getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
 						</td>`;
     			});
-    			//<td class="states">□</td>
 			    html += `
 					<td class="states"> </td>
 					<td class="fill"> </td>
@@ -291,7 +299,6 @@
 			const t_cmd = t ? t.RenderedCmd : '';
 			let last_output = ''
 			if (v && r && t) {
-				//todo: async/await -> then?
 				last_output = await getTaskLastOutput(jobIndex, sr, st);
 			}
 			html += `
@@ -299,7 +306,7 @@
 				Task started: ${t_st}
 				<button onclick="restartSelected(${jobIndex}, ${sr}, ${st})">Restart task</button>
  				</p>
-				<pre style="display: ${display_style};"><code>> ${t_cmd} </code>\n<samp> ${last_output} </samp>
+				<pre class="taskruninfo" style="display: ${display_style};"><code>> ${t_cmd} </code>\n<samp> ${last_output} </samp>
  				</pre>`;
 			return html;
 		}
@@ -334,6 +341,14 @@
 			let res = await fetch(`/lastoutput?job=${job}&run=${run}&task=${task}`);
 			let t = await res.text();
 			return t;
+		}
+		async function renderParsingErrors() {
+			let res = await fetch(`/parsingerrors`);
+			let e = await res.text();
+			if (e) {
+				document.getElementById("parsingerrors_pre").textContent = e;
+				document.getElementById("parsingerrors").style.display = "block";
+			}
 		}
 		async function showHide(jobIndex) {
 			JOBS.Jobs[jobIndex].displaystate.visibility = !JOBS.Jobs[jobIndex].displaystate.visibility;
