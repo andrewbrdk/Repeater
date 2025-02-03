@@ -1,6 +1,6 @@
 ### Repeater
 
-Task scheduler for data analytics
+A task scheduler for data analytics inspired by [Apache Airflow](https://airflow.apache.org/).
 
 <p align="center">
     <a href="https://github.com/andrewbrdk/Repeater">
@@ -8,7 +8,7 @@ Task scheduler for data analytics
     </a>
 </p>
 
-The service should be available at [http://localhost:8080](http://localhost:8080) after the following commands:
+The service should start at [http://localhost:8080](http://localhost:8080) after the following commands:
 
 ```bash
 git clone https://github.com/andrewbrdk/Repeater
@@ -24,10 +24,9 @@ Docker-compose starts Repeater, [ClickHouse](https://clickhouse.com/), [ch-ui](h
 docker compose up --build
 ```
 Repeater: [http://localhost:8080](http://localhost:8080),  
-Streamlit: [http://localhost:8002](http://localhost:8002),
+Streamlit: [http://localhost:8002](http://localhost:8002),  
 ch-ui: [http://localhost:8001](http://localhost:8001),  
 ClickHouse: [http://localhost:8123](http://localhost:8123) and [http://localhost:9000](http://localhost:9000).
-
 
 
 Optional environmental variables:
@@ -37,15 +36,8 @@ REPEATER_PASSWORD=""                    # web auth password
 REPEATER_JOBS_DIRECTORY="./examples/"   # jobs directory
 ```
 
-Task `cmd` [parameters](https://github.com/andrewbrdk/Repeater/blob/main/examples/template.job):
+Task `cmd` [parameters](https://github.com/andrewbrdk/Repeater/blob/main/examples/templated_args.job):
 ```
 {{.title}} - job title
 {{.scheduled_dt}} - current run scheduled date in YYYY-MM-DD
 ```
-
-Repeater is inspired by [Apache Airflow](https://airflow.apache.org/). Key differences are: 
-
-* No DAGs. Only sequences of commands.
-* No operators. Only command line programs. 
-* No python code for DAGs definitions. Tasks are defined in config files.
-* No user accounts. Only a single user.
