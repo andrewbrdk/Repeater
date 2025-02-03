@@ -1,0 +1,10 @@
+FROM python:3.13-slim
+
+RUN pip3 install clickhouse-connect streamlit
+
+RUN mkdir /app
+WORKDIR /app
+
+EXPOSE 8501
+
+ENTRYPOINT ["streamlit", "run", "streamlit.py"]

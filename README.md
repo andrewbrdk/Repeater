@@ -18,14 +18,16 @@ go build
 ./repeater
 ```
 
-Docker-compose starts Repeater, [ClickHouse](https://clickhouse.com/) and [ch-ui](https://github.com/caioricciuti/ch-ui) to run examples:
+Docker-compose starts Repeater, [ClickHouse](https://clickhouse.com/), [ch-ui](https://github.com/caioricciuti/ch-ui) and [Streamlit](https://streamlit.io/) to run examples:
 
 ```bash
 docker compose up --build
 ```
 Repeater: [http://localhost:8080](http://localhost:8080),  
+Streamlit: [http://localhost:8002](http://localhost:8002),
 ch-ui: [http://localhost:8001](http://localhost:8001),  
 ClickHouse: [http://localhost:8123](http://localhost:8123) and [http://localhost:9000](http://localhost:9000).
+
 
 
 Optional environmental variables:
