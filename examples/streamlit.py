@@ -1,8 +1,8 @@
 import pandas as pd
 import clickhouse_connect
 import streamlit as st
-#import altair as alt
-import plotly.graph_objects as go
+import altair as alt
+#import plotly.graph_objects as go
 from db_connections import CHCON
 
 client = clickhouse_connect.get_client(**CHCON)
@@ -20,11 +20,29 @@ if sidebar_radio == "Wiki Stats":
         df = None
         st.text("Can't read data for the 'Pageviews' plot. Make sure to run 'wiki' job at least once.")
     if df is not None:
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=df['dt'], y=df['views'], line_color='black'))
-        fig.update_layout(title='Pageviews', hovermode="x",
-                          yaxis_range=[0, max(df['views'])*1.1])
-        st.plotly_chart(fig)
+        # fig = go.Figure()
+        # fig.add_trace(go.Scatter(x=df['dt'], y=df['views'], line_color='black'))
+        # fig.update_layout(title='Pageviews', hovermode="x",
+        #                   yaxis_range=[0, max(df['views'])*1.1])
+        # st.plotly_chart(fig)
+        ###
+        base = alt.Chart(df).encode(
+            x=alt.X('yearmonthdate(dt):O', axis=alt.Axis(title=None)),
+            y=alt.Y('views:Q', axis=alt.Axis(title=None, format='~s'),
+                    scale=alt.Scale(domain=[0, df['views'].max()]))
+        )
+        chart = alt.layer(
+            base.mark_line(color='black'),
+            base.mark_circle(size=70, color='black', opacity=1).encode(
+                tooltip=[
+                    alt.Tooltip('yearmonthdate(dt):O', title='Date'),
+                    alt.Tooltip('views:Q', title='Views', format='~s')
+                ]
+            )
+        ).properties(
+            title='Pageviews'
+        )
+        st.altair_chart(chart, use_container_width=True)
     try:
         df = client.query_df("SELECT * FROM repeater.wiki_stats")
         col1, col2, col3 = st.columns(3)
