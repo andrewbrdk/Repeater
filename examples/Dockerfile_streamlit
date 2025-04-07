@@ -1,6 +1,6 @@
 FROM python:3.13-slim
 
-RUN pip3 install clickhouse-connect streamlit
+RUN pip3 install clickhouse-connect streamlit plotly
 
 RUN mkdir /app
 WORKDIR /app
