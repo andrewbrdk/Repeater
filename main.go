@@ -263,6 +263,22 @@ func processJobFile(filePath string) (*Job, error) {
 		webLog.Printf("Error parsing file %s: %v\n", filePath, err)
 		return nil, err
 	}
+	if jb.Title == "" {
+		errorLog.Printf("%s: missing job title. Skipping.\n", filePath)
+		webLog.Printf("%s: missing job title. Skipping. \n", filePath)
+		return nil, nil
+	}
+	//todo: check tasks
+	//todo: move parser spec into main
+	specParser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	_, err = specParser.Parse(jb.Cron)
+	if jb.Cron != "" && err != nil {
+		errorLog.Printf("%s: can't parse cron \"%s\". %v.\n", filePath, jb.Cron, err)
+		webLog.Printf("%s: can't parse cron \"%s\". %v.\n", filePath, jb.Cron, err)
+		return nil, err
+	}
+	//todo: allow for missing cron
+	//if cron string is missing, set hcron to nil explicitly
 	exprDesc, _ := hcron.NewDescriptor(hcron.Use24HourTimeFormat(true))
 	jb.HCron, err = exprDesc.ToDescription(jb.Cron, hcron.Locale_en)
 	if err != nil {
