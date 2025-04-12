@@ -8,3 +8,8 @@ require (
 	github.com/lnquy/cron v1.1.1
 	github.com/robfig/cron/v3 v3.0.1
 )
+
+require (
+	github.com/fsnotify/fsnotify v1.9.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
+)

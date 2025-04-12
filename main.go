@@ -21,6 +21,7 @@ import (
 	hcron "github.com/lnquy/cron"
 	"github.com/robfig/cron/v3"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/fsnotify/fsnotify"
 )
 
 //go:embed index.html
@@ -92,23 +93,21 @@ type Job struct {
 type JobsAndCron struct {
 	Jobs []*Job
 	cron *cron.Cron
+	//todo: add mutex?
 	//todo: add config, make global?
 }
 
 func main() {
 	var JC JobsAndCron
-	const scanSchedule = "*/10 * * * * *"
 	initConfig()
 	jwtSecretKey = generateRandomKey(32)
 	infoLog = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 	errorLog = log.New(os.Stdout, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 	webLog = log.New(&webLogBuf, "", log.Ldate|log.Ltime)
 	JC.cron = cron.New(cron.WithSeconds())
-	JC.cron.AddFunc(
-		scanSchedule,
-		func() { scanAndScheduleJobs(&JC) },
-	)
 	JC.cron.Start()
+	go startFSWatcher(&JC)
+	scanAndScheduleJobs(&JC)
 	httpServer(&JC)
 }
 
@@ -135,7 +134,41 @@ func generateRandomKey(size int) []byte {
 	return key
 }
 
+func startFSWatcher(JC *JobsAndCron) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Close()
+	go watchFS(JC, watcher)
+	err = watcher.Add(CONF.jobsDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	select {}
+}
+
+func watchFS(JC *JobsAndCron, watcher *fsnotify.Watcher) {
+	for {
+		select {
+		case _, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			//todo: dont do full rescan on each event
+			scanAndScheduleJobs(JC)
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			errorLog.Println("fsnotify:", err)
+		}
+	}
+}
+
+
 func scanAndScheduleJobs(JC *JobsAndCron) {
+	//todo: add mutex?
 	files := make(map[string][16]byte)
 	err := scanFiles(files)
 	webLogBuf.Reset()
@@ -179,6 +212,7 @@ func scanFiles(files map[string][16]byte) error {
 
 func removeJobsWithoutFiles(files map[string][16]byte, JC *JobsAndCron) {
 	//todo: simplify removing
+	//todo: terminate running commands before removing
 	var toremove []int
 	for idx, jb := range JC.Jobs {
 		md5, haskey := files[jb.file]
@@ -238,11 +272,21 @@ func processJobFile(filePath string) (*Job, error) {
 }
 
 func scheduleJob(jb *Job, JC *JobsAndCron) {
+	var err error
 	JC.Jobs = append(JC.Jobs, jb)
-	jb.cronID, _ = JC.cron.AddFunc(
+	jb.cronID, err = JC.cron.AddFunc(
 		jb.Cron,
 		func() { runScheduled(jb, JC.cron) },
 	)
+	if err != nil {
+		// the error is printed only on the first file read
+		// unless file has changed, the error is not printed on consecutive jobs rescan
+		// the error is displayed in web only briefly, since weblog is cleared on each rescan
+		// todo: save error messages in Jobs?
+		// todo: monitor filesystem changes
+		errorLog.Printf("Error scheduling job '%s' from file '%s': %v\n", jb.Title, jb.file, err)
+		webLog.Printf("Error scheduling job '%s' from file '%s': %v\n", jb.Title, jb.file, err)
+	}
 	infoLog.Printf("Added job '%s' from file '%s'", jb.Title, jb.file)
 }
 
