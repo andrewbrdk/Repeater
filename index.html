@@ -249,11 +249,17 @@
 			}
 			html += `
 				<th class="states">${next_scheduled}</th>
-        		<th class="fill"> </th>
+				<th class="fill"> </th>
 				<th class="schedule">${job.HCron}</th>
-        		<th class="runnow_btn"><button onclick="runNow(${jobIndex})">Run Now</button></th>
-        		<th class="onoff_btn"><button onclick="onOff(${jobIndex})">${job.OnOff ? 'Turn Off' : 'Turn On'}</button></th>
-        		</tr>`;
+				<th class="runnow_btn"><button onclick="runNow(${jobIndex})">Run Now</button></th>`;
+			let onoff_btn_html = ""
+			if (job.Cron != "") {
+				onoff_btn_html = `<button onclick="onOff(${jobIndex})">${job.OnOff ? 'Turn Off' : 'Turn On'}</button>`;
+			}
+			html += `
+				<th class="onoff_btn">${onoff_btn_html}</th>
+				</tr>
+			`;
 			return html;
 		}
 		function jobTableTasksHTML(job, jobIndex) {
