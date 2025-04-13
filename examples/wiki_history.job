@@ -1,0 +1,4 @@
+title = "wiki_history"
+tasks = [
+    {name = "wiki_pageviews", cmd = "python3 ./examples/wiki_pageviews.py --start_date=2023-01-01 --end_date={{.scheduled_dt}}"}
+]
