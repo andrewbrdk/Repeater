@@ -268,8 +268,19 @@ func processJobFile(filePath string) (*Job, error) {
 		webLog.Printf("%s: missing job title. Skipping. \n", filePath)
 		return nil, nil
 	}
-	//todo: check tasks
-	//todo: move parser spec into main
+	if len(jb.Tasks) == 0 {
+		errorLog.Printf("%s: no tasks. Skipping.\n", filePath)
+		webLog.Printf("%s: no tasks. Skipping. \n", filePath)
+		return nil, nil
+	}
+	for _, t := range jb.Tasks {
+		if len(t.Name) == 0 || len(t.Cmd) == 0 {
+			errorLog.Printf("%s: Task name or cmd is empty. Skipping job altogether.\n", filePath)
+			webLog.Printf("%s: Task name or cmd is empty. Skipping job altogether. \n", filePath)
+			return nil, nil
+		}
+	}
+	//todo: move parser spec into JobsAndCron
 	specParser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	_, err = specParser.Parse(jb.Cron)
 	if jb.Cron != "" && err != nil {
@@ -277,11 +288,11 @@ func processJobFile(filePath string) (*Job, error) {
 		webLog.Printf("%s: can't parse cron \"%s\". %v.\n", filePath, jb.Cron, err)
 		return nil, err
 	}
-	//todo: allow for missing cron
-	//if cron string is missing, set hcron to nil explicitly
 	exprDesc, _ := hcron.NewDescriptor(hcron.Use24HourTimeFormat(true))
 	jb.HCron, err = exprDesc.ToDescription(jb.Cron, hcron.Locale_en)
-	if err != nil {
+	if jb.Cron == "" {
+		jb.HCron = ""
+	} else if err != nil {
 		jb.HCron = jb.Cron
 	}
 	return &jb, nil
@@ -290,20 +301,20 @@ func processJobFile(filePath string) (*Job, error) {
 func scheduleJob(jb *Job, JC *JobsAndCron) {
 	var err error
 	JC.Jobs = append(JC.Jobs, jb)
-	jb.cronID, err = JC.cron.AddFunc(
-		jb.Cron,
-		func() { runScheduled(jb, JC.cron) },
-	)
-	if err != nil {
-		// the error is printed only on the first file read
-		// unless file has changed, the error is not printed on consecutive jobs rescan
-		// the error is displayed in web only briefly, since weblog is cleared on each rescan
-		// todo: save error messages in Jobs?
-		// todo: monitor filesystem changes
-		errorLog.Printf("Error scheduling job '%s' from file '%s': %v\n", jb.Title, jb.file, err)
-		webLog.Printf("Error scheduling job '%s' from file '%s': %v\n", jb.Title, jb.file, err)
+	if jb.Cron != "" {
+		jb.cronID, err = JC.cron.AddFunc(
+			jb.Cron,
+			func() { runScheduled(jb, JC.cron) },
+		)
+		if err != nil {
+			errorLog.Printf("Error scheduling job '%s' from file '%s': %v\n", jb.Title, jb.file, err)
+			webLog.Printf("Error scheduling job '%s' from file '%s': %v\n", jb.Title, jb.file, err)
+			// the error is printed only on the first file read
+			// unless the file has changed, the error wont'be printed on consecutive jobs rescan
+			// the error is displayed in web only briefly, since weblog is cleared on each rescan
+		}
+		infoLog.Printf("Added job '%s' from file '%s'", jb.Title, jb.file)
 	}
-	infoLog.Printf("Added job '%s' from file '%s'", jb.Title, jb.file)
 }
 
 func runScheduled(jb *Job, c *cron.Cron) {
