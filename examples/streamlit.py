@@ -21,7 +21,7 @@ def en_wikipedia_stats():
     with col2:
         end_date = st.date_input(label='**To**', value=datetime.today()+timedelta(days=1), format="YYYY-MM-DD")
     try:
-        df = client.query_df("SELECT dt, project, views FROM repeater.wiki_pageviews")
+        df = client.query_df("SELECT dt, project, views FROM repeater.wiki_pageviews order by dt desc")
     except:
         df = None
         st.text("Can't read data for the 'Pageviews' plot. Make sure to run 'wiki' job at least once.")
@@ -35,7 +35,7 @@ def en_wikipedia_stats():
                           height=550)
         st.plotly_chart(fig)
     try:
-        df = client.query_df("SELECT dt, articles, edit, activeusers FROM repeater.wiki_stats")
+        df = client.query_df("SELECT dt, articles, edit, activeusers FROM repeater.wiki_stats order by dt desc")
     except:
         df = None
         st.text("Can't read data for the plots. Make sure to run 'wiki' job at least once.")
@@ -75,7 +75,7 @@ def linux_github_stats():
     with col2:
         end_date = st.date_input(label='**To**', value=datetime.today()+timedelta(days=1), format="YYYY-MM-DD")
     try:
-        df = client.query_df("SELECT dt, commits FROM repeater.github_linux_commits_count")
+        df = client.query_df("SELECT dt, commits FROM repeater.github_linux_commits_count order by dt desc")
     except:
         df = None
         st.text("Can't read data for the 'Github Linux Commits' plot. Make sure to run 'github_linux' job at least once.")
@@ -89,7 +89,7 @@ def linux_github_stats():
                           height=550)
         st.plotly_chart(fig)
     try:
-        df = client.query_df("SELECT dt, stars, size_kb FROM repeater.github_linux_stats")
+        df = client.query_df("SELECT dt, stars, size_kb FROM repeater.github_linux_stats order by dt desc")
     except:
         df = None
         st.text("Can't read data for the plots. Make sure to run 'github_linux' job at least once.")
@@ -125,7 +125,7 @@ def bitcoin_exchange_rate():
     with col2:
         end_date = st.date_input(label='**To**', value=datetime.today()+timedelta(days=1), format="YYYY-MM-DD")
     try:
-        df = client.query_df("SELECT dt, price_usd FROM repeater.btc_exchange_rate")
+        df = client.query_df("SELECT dt, price_usd FROM repeater.btc_exchange_rate order by dt desc")
     except:
         df = None
         st.text("Can't read data for the 'BTC, $' plot. Make sure to run 'bitcoin' job at least once.")
