@@ -93,8 +93,10 @@ type Job struct {
 type JobsAndCron struct {
 	Jobs []*Job
 	cron *cron.Cron
-	//todo: add mutex?
 	//todo: add config, make global?
+	//no need for mutex
+	//Jobs is modified from scanAndScheduleJobs only
+	//calls to scanAndScheduleJobs don't overlap
 }
 
 func main() {
@@ -106,8 +108,8 @@ func main() {
 	webLog = log.New(&webLogBuf, "", log.Ldate|log.Ltime)
 	JC.cron = cron.New(cron.WithSeconds())
 	JC.cron.Start()
-	go startFSWatcher(&JC)
 	scanAndScheduleJobs(&JC)
+	go startFSWatcher(&JC)
 	httpServer(&JC)
 }
 
@@ -155,8 +157,8 @@ func watchFS(JC *JobsAndCron, watcher *fsnotify.Watcher) {
 			if !ok {
 				return
 			}
-			//todo: dont do full rescan on each event
 			scanAndScheduleJobs(JC)
+			//todo: avoid full rescan on each event
 		case err, ok := <-watcher.Errors:
 			if !ok {
 				return
@@ -168,7 +170,6 @@ func watchFS(JC *JobsAndCron, watcher *fsnotify.Watcher) {
 
 
 func scanAndScheduleJobs(JC *JobsAndCron) {
-	//todo: add mutex?
 	files := make(map[string][16]byte)
 	err := scanFiles(files)
 	webLogBuf.Reset()
@@ -212,7 +213,6 @@ func scanFiles(files map[string][16]byte) error {
 
 func removeJobsWithoutFiles(files map[string][16]byte, JC *JobsAndCron) {
 	//todo: simplify removing
-	//todo: terminate running commands before removing
 	var toremove []int
 	for idx, jb := range JC.Jobs {
 		md5, haskey := files[jb.file]
@@ -234,6 +234,7 @@ func removeJobsWithoutFiles(files map[string][16]byte, JC *JobsAndCron) {
 		last_idx := len(JC.Jobs) - 1
 		for _, jb_idx := range toremove {
 			JC.cron.Remove(JC.Jobs[jb_idx].cronID)
+			//todo: terminate running commands before removing
 			JC.Jobs[jb_idx] = JC.Jobs[last_idx]
 			last_idx = last_idx - 1
 		}
@@ -309,21 +310,19 @@ func scheduleJob(jb *Job, JC *JobsAndCron) {
 		if err != nil {
 			errorLog.Printf("Error scheduling job '%s' from file '%s': %v\n", jb.Title, jb.file, err)
 			webLog.Printf("Error scheduling job '%s' from file '%s': %v\n", jb.Title, jb.file, err)
-			// the error is printed only on the first file read
-			// unless the file has changed, the error wont'be printed on consecutive jobs rescan
-			// the error is displayed in web only briefly, since weblog is cleared on each rescan
 		}
 		infoLog.Printf("Added job '%s' from file '%s'", jb.Title, jb.file)
 	}
 }
 
 func runScheduled(jb *Job, c *cron.Cron) {
+	//todo: pass value instead of a pointer?
 	if !jb.OnOff {
 		infoLog.Printf("Skipping '%s'", jb.Title)
 		return
 	}
 	run := initRun(jb, c)
-	runJob(run, jb)
+	go runJob(run, jb)
 	jb.NextScheduled = c.Entry(jb.cronID).Next
 	//todo: check for errors
 }
@@ -355,6 +354,7 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 }
 
 func runJob(run *JobRun, jb *Job) error {
+	//todo: mutex for restarts, cancellation
 	run.Status = Running
 	infoLog.Printf("Running '%s'", jb.Title)
 	var jobFail bool
@@ -419,10 +419,11 @@ func restartJobRun(jb *Job, run *JobRun) {
 		tr.RenderedCmd = ""
 		tr.lastOutput = ""
 	}
-	runJob(run, jb)
+	go runJob(run, jb)
 }
 
 func restartTaskRun(taskRun *TaskRun, jobRun *JobRun) {
+	// go func() { ... } ?
 	runTask(taskRun)
 	updateJobRunStatusFromTasks(jobRun)
 	//todo: add error check
@@ -463,6 +464,7 @@ func jobOnOff(jobidx int, JC *JobsAndCron) error {
 
 func runNow(jb *Job) error {
 	run := initRun(jb, nil)
+	//todo: go runJob
 	err := runJob(run, jb)
 	return err
 }
@@ -620,8 +622,10 @@ func httpRestart(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryPar
 		t = rn.TasksHistory[httpQPars.taskIndex]
 	}
 	if rn != nil && t != nil {
-		restartTaskRun(t, rn)
+		//todo: handle mutex and cancellation
+		go restartTaskRun(t, rn)
 	} else if rn != nil {
+		//go restartJobRun?
 		restartJobRun(jb, rn)
 	} else {
 		http.Error(w, "JobRun or TaskRun not found", http.StatusNotFound)
@@ -683,6 +687,7 @@ func httpLastOutput(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQuery
 }
 
 func httpParseJobRunTask(r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
+	//todo: use errors instead of -1
 	job_str := r.URL.Query().Get("job")
 	jb, err := strconv.Atoi(job_str)
 	if err != nil {
