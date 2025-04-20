@@ -490,7 +490,6 @@ func cancelTaskRun(taskRun *TaskRun, jobRun *JobRun) {
 }
 
 func updateJobRunStatusFromTasks(jobRun *JobRun) {
-	//todo: simplify
 	for _, tr := range jobRun.TasksHistory {
 		if tr.Status == RunFailure {
 			jobRun.Status = RunFailure
@@ -524,9 +523,9 @@ func jobOnOff(jobidx int, JC *JobsAndCron) error {
 
 func runNow(jb *Job) error {
 	run := initRun(jb, nil)
-	//todo: go runJob
-	err := runJob(run, jb)
-	return err
+	go runJob(run, jb)
+	//todo: check for errors
+	return nil
 }
 
 type HTTPQueryParams struct {
