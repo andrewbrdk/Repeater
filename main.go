@@ -1,27 +1,29 @@
 package main
 
 import (
+	"context"
 	"crypto/md5"
 	"crypto/rand"
 	"embed"
 	"encoding/json"
 	"errors"
+	"log" //todo: use log/slog
 	"net/http"
 	"os"
 	"os/exec"
+	"syscall"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	texttemplate "text/template"
 	"time"
-	"log" //todo: use log/slog
 
 	"github.com/BurntSushi/toml"
+	"github.com/fsnotify/fsnotify"
+	"github.com/golang-jwt/jwt/v5"
 	hcron "github.com/lnquy/cron"
 	"github.com/robfig/cron/v3"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/fsnotify/fsnotify"
 )
 
 //go:embed index.html
@@ -65,6 +67,7 @@ type TaskRun struct {
 	Status            RunStatus
 	Attempt           int
 	cmdTemplateParams map[string]string
+	ctxCancelFn context.CancelFunc
 	//todo: store in db
 	lastOutput string
 }
@@ -167,7 +170,6 @@ func watchFS(JC *JobsAndCron, watcher *fsnotify.Watcher) {
 		}
 	}
 }
-
 
 func scanAndScheduleJobs(JC *JobsAndCron) {
 	files := make(map[string][16]byte)
@@ -375,7 +377,7 @@ func runJob(run *JobRun, jb *Job) error {
 }
 
 func runTask(tr *TaskRun) error {
-	tmpl := texttemplate.New("tmpl")
+	tmpl := texttemplate.New("tmpl").Option("missingkey=error")
 	tmpl, err := tmpl.Parse(tr.cmd)
 	if err != nil {
 		errorLog.Printf("Error parsing command template '%s'-'%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, tr.cmd, err)
@@ -388,25 +390,46 @@ func runTask(tr *TaskRun) error {
 		return err
 	}
 	tr.StartTime = time.Now()
-	tr.Attempt += tr.Attempt
+	tr.Attempt += 1
 	tr.RenderedCmd = sb.String()
 	tr.Status = Running
-	output, err := executeCmd(tr.RenderedCmd)
+	ctx, cancel := context.WithCancel(context.Background())
+	tr.ctxCancelFn = cancel
+	defer func() {
+		if tr.ctxCancelFn != nil {
+			tr.ctxCancelFn()
+			tr.ctxCancelFn = nil
+		}
+	}()
+	output, err := executeCmd(ctx, tr.RenderedCmd)
 	tr.lastOutput = output
 	tr.EndTime = time.Now()
-	tr.Status = RunSuccess
 	if err != nil {
 		errorLog.Printf("Error executing '%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, err)
 		tr.Status = RunFailure
+	} else {
+		tr.Status = RunSuccess
 	}
 	return err
 }
 
-func executeCmd(command string) (string, error) {
-	cmd := exec.Command("/bin/bash", "-c", command)
+func executeCmd(ctx context.Context, command string) (string, error) {
+	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", command)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+		Pdeathsig: syscall.SIGKILL,
+	}
 	output, err := cmd.CombinedOutput()
+
+	if ctx.Err() != nil {
+		if cmd.Process != nil {
+			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+		return string(output), ctx.Err()
+	}
 	return string(output), err
 }
+
 
 func restartJobRun(jb *Job, run *JobRun) {
 	run.Status = NoRun
@@ -427,6 +450,23 @@ func restartTaskRun(taskRun *TaskRun, jobRun *JobRun) {
 	runTask(taskRun)
 	updateJobRunStatusFromTasks(jobRun)
 	//todo: add error check
+}
+
+func cancelJobRun(jb *Job, run *JobRun) {
+	for _, tr := range run.TasksHistory {
+		cancelTaskRun(tr, run)
+		//todo: skip execution of remaining tasks
+	}
+	updateJobRunStatusFromTasks(run)
+}
+
+func cancelTaskRun(taskRun *TaskRun, jobRun *JobRun) {
+	if taskRun.Status == Running {
+		if taskRun.ctxCancelFn != nil {
+			taskRun.ctxCancelFn()
+			taskRun.ctxCancelFn = nil
+		}
+	}
 }
 
 func updateJobRunStatusFromTasks(jobRun *JobRun) {
@@ -487,6 +527,9 @@ func httpServer(JC *JobsAndCron) {
 	})
 	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
 		httpRestart(w, r, httpQPars, JC)
+	})
+	http.HandleFunc("/cancel", func(w http.ResponseWriter, r *http.Request) {
+		httpCancel(w, r, httpQPars, JC)
 	})
 	http.HandleFunc("/runnow", func(w http.ResponseWriter, r *http.Request) {
 		httpRunNow(w, r, httpQPars, JC)
@@ -634,6 +677,44 @@ func httpRestart(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryPar
 	// todo: w.Write(json.Marshal(JC))
 	w.WriteHeader(http.StatusOK)
 }
+
+func httpCancel(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
+	err, code, msg := httpCheckAuth(w, r)
+	if err != nil {
+		http.Error(w, msg, code)
+		return
+	}
+	httpParseJobRunTask(r, httpQPars, JC)
+	// todo: simplify
+	var jb *Job
+	jb = nil
+	if httpQPars.jobIndex != -1 {
+		jb = JC.Jobs[httpQPars.jobIndex]
+	}
+	var rn *JobRun
+	rn = nil
+	if jb != nil && httpQPars.runIndex != -1 {
+		rn = jb.RunHistory[httpQPars.runIndex]
+	}
+	var t *TaskRun
+	t = nil
+	if rn != nil && httpQPars.taskIndex != -1 {
+		t = rn.TasksHistory[httpQPars.taskIndex]
+	}
+	if rn != nil && t != nil {
+		//todo: handle mutex and cancellation
+		go cancelTaskRun(t, rn)
+	} else if rn != nil {
+		//go restartJobRun?
+		cancelJobRun(jb, rn)
+	} else {
+		http.Error(w, "JobRun or TaskRun not found", http.StatusNotFound)
+		return
+	}
+	// todo: w.Write(json.Marshal(JC))
+	w.WriteHeader(http.StatusOK)
+}
+
 
 func httpRunNow(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
 	err, code, msg := httpCheckAuth(w, r)
