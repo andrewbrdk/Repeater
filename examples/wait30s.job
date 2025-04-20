@@ -1,0 +1,5 @@
+title = "wait_30s"
+cron = "0 */5 * * * *"
+tasks = [
+    {name = "wait_30s", cmd = "sleep 30 && echo 'done'"}
+]

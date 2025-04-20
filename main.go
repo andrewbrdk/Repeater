@@ -366,6 +366,20 @@ func runJob(run *JobRun, jb *Job) error {
 			jobFail = true
 			break
 		}
+		// todo: create job context, skip tasks on cancel
+		// select {
+		// case <-ctx.Done():
+		// 	infoLog.Printf("Job '%s' was cancelled", jb.Title)
+		// 	run.Status = RunFailure
+		// 	run.EndTime = time.Now()
+		// 	return ctx.Err()
+		// default:
+		// 	err := runTask(ctx, tr)
+		// 	if err != nil {
+		// 		jobFail = true
+		// 		break
+		// 	}
+		// }
 	}
 	run.Status = RunSuccess
 	if jobFail {
@@ -465,8 +479,14 @@ func cancelTaskRun(taskRun *TaskRun, jobRun *JobRun) {
 		if taskRun.ctxCancelFn != nil {
 			taskRun.ctxCancelFn()
 			taskRun.ctxCancelFn = nil
+			taskRun.lastOutput = ""
+			taskRun.EndTime = time.Time{}
+			taskRun.Status = RunFailure
+		} else {
+			panic("Can't cancel running task. This is not supposed to happen.")
 		}
 	}
+	updateJobRunStatusFromTasks(jobRun)
 }
 
 func updateJobRunStatusFromTasks(jobRun *JobRun) {

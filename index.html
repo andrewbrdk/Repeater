@@ -297,6 +297,7 @@
 				<p style="display: ${display_style};">
 				Job scheduled: ${r_sch}
 				<button onclick="restartSelected(${jobIndex}, ${sr}, null)">Restart job</button>
+				<button onclick="cancelSelected(${jobIndex}, ${sr}, null)">Cancel job</button>
 				</p>`;
 			let st = job.displaystate['selected_task'];
 			let t = r ? r.TasksHistory[st] : null;
@@ -311,6 +312,7 @@
 				<p style="display: ${display_style};">
 				Task started: ${t_st}
 				<button onclick="restartSelected(${jobIndex}, ${sr}, ${st})">Restart task</button>
+				<button onclick="cancelSelected(${jobIndex}, ${sr}, ${st})">Cancel task</button>
  				</p>
 				<pre class="taskruninfo" style="display: ${display_style};"><code>> ${t_cmd} </code>\n<samp> ${last_output} </samp>
  				</pre>`;
@@ -341,6 +343,10 @@
 		}
 		async function restartSelected(job, run, task) {
 			let res = await fetch(`/restart?job=${job}&run=${run}&task=${task}`);
+			await renderPage();
+		}
+		async function cancelSelected(job, run, task) {
+			let res = await fetch(`/cancel?job=${job}&run=${run}&task=${task}`);
 			await renderPage();
 		}
 		async function getTaskLastOutput(job, run, task) {
