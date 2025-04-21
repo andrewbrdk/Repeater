@@ -370,18 +370,10 @@ func runJob(run *JobRun, jb *Job) error {
 	infoLog.Printf("Running '%s'", jb.Title)
 	var jobFail bool
 	for _, tr := range run.TasksHistory {
-		select {
-		case <-ctx.Done():
-			infoLog.Printf("Job '%s' was cancelled", jb.Title)
-			run.Status = RunFailure
-			run.EndTime = time.Time{}
-			return ctx.Err()
-		default:
-			err := runTask(ctx, tr)
-			if err != nil {
-				jobFail = true
-				break
-			}
+		err := runTask(ctx, tr)
+		if err != nil {
+			jobFail = true
+			break
 		}
 	}
 	run.Status = RunSuccess
