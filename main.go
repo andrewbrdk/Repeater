@@ -238,6 +238,8 @@ func removeJobsWithoutFiles(files map[string][16]byte, JC *JobsAndCron) {
 		for _, jb_idx := range toremove {
 			JC.cron.Remove(JC.Jobs[jb_idx].cronID)
 			//todo: terminate running commands before removing
+			//range over
+			//check manually restarted tasks
 			JC.Jobs[jb_idx] = JC.Jobs[last_idx]
 			last_idx = last_idx - 1
 		}
@@ -319,7 +321,7 @@ func scheduleJob(jb *Job, JC *JobsAndCron) {
 }
 
 func runScheduled(jb *Job, c *cron.Cron) {
-	//todo: pass value instead of a pointer?
+	//todo: check race conditions
 	if !jb.OnOff {
 		infoLog.Printf("Skipping '%s'", jb.Title)
 		return
@@ -457,16 +459,16 @@ func restartJobRun(jb *Job, run *JobRun) {
 }
 
 func restartTaskRun(taskRun *TaskRun, jobRun *JobRun) {
-	// go func() { ... } ?
-	runTask(nil, taskRun)
-	updateJobRunStatusFromTasks(jobRun)
+	go func() {
+		runTask(nil, taskRun)
+		updateJobRunStatusFromTasks(jobRun)
+	} ()
 	//todo: add error check
 }
 
 func cancelJobRun(jb *Job, run *JobRun) {
 	for _, tr := range run.TasksHistory {
 		cancelTaskRun(tr, run)
-		//todo: skip execution of remaining tasks
 	}
 	updateJobRunStatusFromTasks(run)
 }
@@ -480,7 +482,7 @@ func cancelTaskRun(taskRun *TaskRun, jobRun *JobRun) {
 			taskRun.EndTime = time.Time{}
 			taskRun.Status = RunFailure
 		} else {
-			panic("Can't cancel running task. This is not supposed to happen.")
+			panic("Can't cancel a running task. This is not supposed to happen.")
 		}
 	}
 	updateJobRunStatusFromTasks(jobRun)
