@@ -11,11 +11,11 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"syscall"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	texttemplate "text/template"
 	"time"
 
@@ -67,7 +67,7 @@ type TaskRun struct {
 	Status            RunStatus
 	Attempt           int
 	cmdTemplateParams map[string]string
-	ctxCancelFn context.CancelFunc
+	ctxCancelFn       context.CancelFunc
 	//todo: store in db
 	lastOutput string
 }
@@ -78,6 +78,7 @@ type JobRun struct {
 	EndTime       time.Time
 	Status        RunStatus
 	TasksHistory  []*TaskRun
+	ctxCancelFn   context.CancelFunc
 }
 
 type Job struct {
@@ -356,30 +357,32 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 }
 
 func runJob(run *JobRun, jb *Job) error {
-	//todo: mutex for restarts, cancellation
+	//todo: check race conditions
+	ctx, cancel := context.WithCancel(context.Background())
+	run.ctxCancelFn = cancel
+	defer func() {
+		if run.ctxCancelFn != nil {
+			run.ctxCancelFn()
+			run.ctxCancelFn = nil
+		}
+	}()
 	run.Status = Running
 	infoLog.Printf("Running '%s'", jb.Title)
 	var jobFail bool
 	for _, tr := range run.TasksHistory {
-		err := runTask(tr)
-		if err != nil {
-			jobFail = true
-			break
+		select {
+		case <-ctx.Done():
+			infoLog.Printf("Job '%s' was cancelled", jb.Title)
+			run.Status = RunFailure
+			run.EndTime = time.Time{}
+			return ctx.Err()
+		default:
+			err := runTask(ctx, tr)
+			if err != nil {
+				jobFail = true
+				break
+			}
 		}
-		// todo: create job context, skip tasks on cancel
-		// select {
-		// case <-ctx.Done():
-		// 	infoLog.Printf("Job '%s' was cancelled", jb.Title)
-		// 	run.Status = RunFailure
-		// 	run.EndTime = time.Now()
-		// 	return ctx.Err()
-		// default:
-		// 	err := runTask(ctx, tr)
-		// 	if err != nil {
-		// 		jobFail = true
-		// 		break
-		// 	}
-		// }
 	}
 	run.Status = RunSuccess
 	if jobFail {
@@ -390,7 +393,7 @@ func runJob(run *JobRun, jb *Job) error {
 	return nil
 }
 
-func runTask(tr *TaskRun) error {
+func runTask(ctx context.Context, tr *TaskRun) error {
 	tmpl := texttemplate.New("tmpl").Option("missingkey=error")
 	tmpl, err := tmpl.Parse(tr.cmd)
 	if err != nil {
@@ -407,7 +410,10 @@ func runTask(tr *TaskRun) error {
 	tr.Attempt += 1
 	tr.RenderedCmd = sb.String()
 	tr.Status = Running
-	ctx, cancel := context.WithCancel(context.Background())
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithCancel(ctx)
 	tr.ctxCancelFn = cancel
 	defer func() {
 		if tr.ctxCancelFn != nil {
@@ -430,7 +436,7 @@ func runTask(tr *TaskRun) error {
 func executeCmd(ctx context.Context, command string) (string, error) {
 	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", command)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
+		Setpgid:   true,
 		Pdeathsig: syscall.SIGKILL,
 	}
 	output, err := cmd.CombinedOutput()
@@ -443,7 +449,6 @@ func executeCmd(ctx context.Context, command string) (string, error) {
 	}
 	return string(output), err
 }
-
 
 func restartJobRun(jb *Job, run *JobRun) {
 	run.Status = NoRun
@@ -461,7 +466,7 @@ func restartJobRun(jb *Job, run *JobRun) {
 
 func restartTaskRun(taskRun *TaskRun, jobRun *JobRun) {
 	// go func() { ... } ?
-	runTask(taskRun)
+	runTask(nil, taskRun)
 	updateJobRunStatusFromTasks(jobRun)
 	//todo: add error check
 }
@@ -733,7 +738,6 @@ func httpCancel(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryPara
 	// todo: w.Write(json.Marshal(JC))
 	w.WriteHeader(http.StatusOK)
 }
-
 
 func httpRunNow(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
 	err, code, msg := httpCheckAuth(w, r)
