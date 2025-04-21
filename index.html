@@ -382,6 +382,13 @@
 		}
 		let JOBS = {};
         renderPage();
+
+        const evtSource = new EventSource("/events");
+        evtSource.onmessage = function(e) {
+			const update = JSON.parse(e.data);
+			console.log("Update:", update);
+			//updateJobStatusInDOM(update);
+		};
 	</script>
 </body>
 </html>
