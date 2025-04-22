@@ -195,6 +195,7 @@ func scanAndScheduleJobs(JC *JobsAndCron) {
 	sort.SliceStable(JC.Jobs, func(i, j int) bool {
 		return JC.Jobs[i].Title < JC.Jobs[j].Title
 	})
+	//todo: broadcastUpdate
 }
 
 func scanFiles(files map[string][16]byte) error {
@@ -362,7 +363,6 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 
 func runJob(run *JobRun, jb *Job) error {
 	//todo: check race conditions
-	defer broadcastUpdate(fmt.Sprintf(`{"event": "job_finished", "name": "%s"}`, jb.Title))
 	ctx, cancel := context.WithCancel(context.Background())
 	run.ctxCancelFn = cancel
 	defer func() {
@@ -386,12 +386,12 @@ func runJob(run *JobRun, jb *Job) error {
 		run.Status = RunFailure
 	}
 	run.EndTime = time.Now()
+	broadcastUpdate(fmt.Sprintf(`{"event": "job_finished", "name": "%s"}`, jb.Title))
 	//todo: return error
 	return nil
 }
 
 func runTask(ctx context.Context, tr *TaskRun) error {
-	defer broadcastUpdate(fmt.Sprintf(`{"event": "task_finished", "name": "%s"}`, tr.Name))
 	tmpl := texttemplate.New("tmpl").Option("missingkey=error")
 	tmpl, err := tmpl.Parse(tr.cmd)
 	if err != nil {
@@ -428,6 +428,7 @@ func runTask(ctx context.Context, tr *TaskRun) error {
 	} else {
 		tr.Status = RunSuccess
 	}
+	broadcastUpdate(fmt.Sprintf(`{"event": "task_finished", "name": "%s"}`, tr.Name))
 	return err
 }
 
@@ -475,6 +476,7 @@ func cancelJobRun(jb *Job, run *JobRun) {
 		cancelTaskRun(tr, run)
 	}
 	updateJobRunStatusFromTasks(run)
+	broadcastUpdate(fmt.Sprintf(`{"event": "job_cancel", "title": "%s"}`, jb.Title))
 }
 
 func cancelTaskRun(taskRun *TaskRun, jobRun *JobRun) {
@@ -490,6 +492,7 @@ func cancelTaskRun(taskRun *TaskRun, jobRun *JobRun) {
 		}
 	}
 	updateJobRunStatusFromTasks(jobRun)
+	broadcastUpdate(fmt.Sprintf(`{"event": "task_cancel", "name": "%s"}`, taskRun.Name))
 }
 
 func updateJobRunStatusFromTasks(jobRun *JobRun) {
@@ -647,60 +650,6 @@ func httpJobs(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jData)
-}
-
-func httpEvents(w http.ResponseWriter, r *http.Request) {
-	err, code, msg := httpCheckAuth(w, r)
-	if err != nil {
-		http.Error(w, msg, code)
-		return
-	}
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
-		return
-	}
-
-	clientChan := make(chan string)
-	addClient(clientChan)
-	defer removeClient(clientChan)
-
-	for msg := range clientChan {
-		fmt.Fprintf(w, "data: %s\n\n", msg)
-		flusher.Flush()
-	}
-}
-
-var (
-	clients   = make(map[chan string]bool)
-	clientsMu sync.Mutex
-)
-
-func addClient(ch chan string) {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
-	clients[ch] = true
-}
-
-func removeClient(ch chan string) {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
-	delete(clients, ch)
-	close(ch)
-}
-
-func broadcastUpdate(msg string) {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
-	for ch := range clients {
-		select {
-		case ch <- msg:
-		default: // drop message if client is slow
-		}
-	}
 }
 
 func httpOnOff(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
@@ -881,3 +830,59 @@ func httpParsingErrors(w http.ResponseWriter, r *http.Request) {
 	//todo: unnecessary conversions?
 	w.Write([]byte(webLogBuf.String()))
 }
+
+var (
+	clients   = make(map[chan string]bool)
+	clientsMu sync.Mutex
+)
+
+func addClient(ch chan string) {
+	clientsMu.Lock()
+	defer clientsMu.Unlock()
+	clients[ch] = true
+}
+
+func removeClient(ch chan string) {
+	clientsMu.Lock()
+	defer clientsMu.Unlock()
+	delete(clients, ch)
+	close(ch)
+}
+
+func broadcastUpdate(msg string) {
+	clientsMu.Lock()
+	defer clientsMu.Unlock()
+	infoLog.Printf("Event '%s'", msg)
+	for ch := range clients {
+		select {
+		case ch <- msg:
+		default: // drop message if channel overflows
+		}
+	}
+}
+
+func httpEvents(w http.ResponseWriter, r *http.Request) {
+	err, code, msg := httpCheckAuth(w, r)
+	if err != nil {
+		http.Error(w, msg, code)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	clientChan := make(chan string, 30)
+	addClient(clientChan)
+	defer removeClient(clientChan)
+
+	for msg := range clientChan {
+		fmt.Fprintf(w, "data: %s\n\n", msg)
+		flusher.Flush()
+	}
+}
+
