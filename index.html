@@ -159,15 +159,18 @@
 				let d = await res.json();
 				renderAllJobs(d);
 				renderParsingErrors();
+				setupEventSource();
 			} else if (statusCode == 401) { // unauthorized
 				document.getElementById("login").style.display = "block";
 				document.getElementById("alljobs").style.display = "none";
 				document.getElementById("parsingerrors").style.display = "none";
+				closeEventSource();
 			} else { // other
 				document.getElementById("login").style.display = "block";
 				document.getElementById("alljobs").style.display = "none";
 				document.getElementById("parsingerrors").style.display = "none";
 				alert("internal error");
+				closeEventSource();
 			}
 		}
 		async function submitLogin() {
@@ -380,15 +383,31 @@
 				d.getSeconds().toString().padStart(2, '0')
 			);
 		}
-		let JOBS = {};
-        renderPage();
+		function setupEventSource() {
+			if (!EVTSOURCE || EVTSOURCE.readyState === EventSource.CLOSED) {
+				EVTSOURCE = new EventSource("/events");
+				EVTSOURCE.onmessage = function (e) {
+					console.log("EventSource message:", e.data);
+					renderPage();
+					//todo: don't redraw the page on every event
+					//const update = JSON.parse(e.data);
+					//console.log("Update:", update);
+				};
+				EVTSOURCE.onerror = function () {
+					console.error("EventSource connection error.");
+				};
+			}
+		}
+		function closeEventSource() {
+			if (EVTSOURCE) {
+				EVTSOURCE.close();
+				EVTSOURCE = null;
+			}
+		}
 
-        const evtSource = new EventSource("/events");
-        evtSource.onmessage = function(e) {
-			const update = JSON.parse(e.data);
-			console.log("Update:", update);
-			//updateJobStatusInDOM(update);
-		};
+		let JOBS = {};
+		let EVTSOURCE = null;
+        renderPage();
 	</script>
 </body>
 </html>

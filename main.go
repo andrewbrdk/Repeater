@@ -386,7 +386,7 @@ func runJob(run *JobRun, jb *Job) error {
 		run.Status = RunFailure
 	}
 	run.EndTime = time.Now()
-	broadcastUpdate(fmt.Sprintf(`{"event": "job_finished", "name": "%s"}`, jb.Title))
+	broadcastSSEUpdate(fmt.Sprintf(`{"event": "job_finished", "name": "%s"}`, jb.Title))
 	//todo: return error
 	return nil
 }
@@ -428,7 +428,7 @@ func runTask(ctx context.Context, tr *TaskRun) error {
 	} else {
 		tr.Status = RunSuccess
 	}
-	broadcastUpdate(fmt.Sprintf(`{"event": "task_finished", "name": "%s"}`, tr.Name))
+	broadcastSSEUpdate(fmt.Sprintf(`{"event": "task_finished", "name": "%s"}`, tr.Name))
 	return err
 }
 
@@ -467,7 +467,7 @@ func restartTaskRun(taskRun *TaskRun, jobRun *JobRun) {
 	go func() {
 		runTask(nil, taskRun)
 		updateJobRunStatusFromTasks(jobRun)
-	} ()
+	}()
 	//todo: add error check
 }
 
@@ -476,7 +476,7 @@ func cancelJobRun(jb *Job, run *JobRun) {
 		cancelTaskRun(tr, run)
 	}
 	updateJobRunStatusFromTasks(run)
-	broadcastUpdate(fmt.Sprintf(`{"event": "job_cancel", "title": "%s"}`, jb.Title))
+	broadcastSSEUpdate(fmt.Sprintf(`{"event": "job_cancel", "title": "%s"}`, jb.Title))
 }
 
 func cancelTaskRun(taskRun *TaskRun, jobRun *JobRun) {
@@ -492,7 +492,7 @@ func cancelTaskRun(taskRun *TaskRun, jobRun *JobRun) {
 		}
 	}
 	updateJobRunStatusFromTasks(jobRun)
-	broadcastUpdate(fmt.Sprintf(`{"event": "task_cancel", "name": "%s"}`, taskRun.Name))
+	broadcastSSEUpdate(fmt.Sprintf(`{"event": "task_cancel", "name": "%s"}`, taskRun.Name))
 }
 
 func updateJobRunStatusFromTasks(jobRun *JobRun) {
@@ -831,29 +831,34 @@ func httpParsingErrors(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(webLogBuf.String()))
 }
 
-var (
-	clients   = make(map[chan string]bool)
-	clientsMu sync.Mutex
-)
-
-func addClient(ch chan string) {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
-	clients[ch] = true
+type sseClients struct {
+	clients map[chan string]bool
+	mu      sync.Mutex
 }
 
-func removeClient(ch chan string) {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
-	delete(clients, ch)
+// todo: avoid global variables
+var SSECLIENTS = &sseClients{
+	clients: make(map[chan string]bool),
+}
+
+func addSSEClient(ch chan string) {
+	SSECLIENTS.mu.Lock()
+	defer SSECLIENTS.mu.Unlock()
+	SSECLIENTS.clients[ch] = true
+}
+
+func removeSSEClient(ch chan string) {
+	SSECLIENTS.mu.Lock()
+	defer SSECLIENTS.mu.Unlock()
+	delete(SSECLIENTS.clients, ch)
 	close(ch)
 }
 
-func broadcastUpdate(msg string) {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
+func broadcastSSEUpdate(msg string) {
+	SSECLIENTS.mu.Lock()
+	defer SSECLIENTS.mu.Unlock()
 	infoLog.Printf("Event '%s'", msg)
-	for ch := range clients {
+	for ch := range SSECLIENTS.clients {
 		select {
 		case ch <- msg:
 		default: // drop message if channel overflows
@@ -877,12 +882,11 @@ func httpEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clientChan := make(chan string, 30)
-	addClient(clientChan)
-	defer removeClient(clientChan)
+	addSSEClient(clientChan)
+	defer removeSSEClient(clientChan)
 
 	for msg := range clientChan {
 		fmt.Fprintf(w, "data: %s\n\n", msg)
 		flusher.Flush()
 	}
 }
-
