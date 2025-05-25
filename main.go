@@ -44,6 +44,7 @@ type Config struct {
 	port     string
 	jobsDir  string
 	password string
+	notify   string
 }
 
 type RunStatus int
@@ -123,6 +124,7 @@ func initConfig() {
 	CONF.port = ":8080"
 	CONF.jobsDir = "./examples/"
 	CONF.password = ""
+	CONF.notify = "./examples/notify.py"
 	if port := os.Getenv("REPEATER_PORT"); port != "" {
 		CONF.port = port
 	}
@@ -130,6 +132,7 @@ func initConfig() {
 		CONF.jobsDir = jobsDir
 	}
 	CONF.password = os.Getenv("REPEATER_PASSWORD")
+	CONF.notify = os.Getenv("REPEATER_NOTIFY")
 }
 
 func generateRandomKey(size int) []byte {
@@ -373,6 +376,7 @@ func runJob(run *JobRun, jb *Job) error {
 	}()
 	run.Status = Running
 	infoLog.Printf("Running '%s'", jb.Title)
+	broadcastSSEUpdate(fmt.Sprintf(`{"event": "job_running", "name": "%s"}`, jb.Title))
 	var jobFail bool
 	for _, tr := range run.TasksHistory {
 		err := runTask(ctx, tr)
@@ -419,12 +423,14 @@ func runTask(ctx context.Context, tr *TaskRun) error {
 			tr.ctxCancelFn = nil
 		}
 	}()
+	broadcastSSEUpdate(fmt.Sprintf(`{"event": "task_running", "name": "%s"}`, tr.Name))
 	output, err := executeCmd(ctx, tr.RenderedCmd)
 	tr.lastOutput = output
 	tr.EndTime = time.Now()
 	if err != nil {
 		errorLog.Printf("Error executing '%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, err)
 		tr.Status = RunFailure
+		notifyTaskFailure(tr)
 	} else {
 		tr.Status = RunSuccess
 	}
@@ -447,6 +453,27 @@ func executeCmd(ctx context.Context, command string) (string, error) {
 		return string(output), ctx.Err()
 	}
 	return string(output), err
+}
+
+func notifyTaskFailure(tr *TaskRun) {
+	if CONF.notify == "" {
+		return
+	}
+	cmd := exec.Command(CONF.notify,
+		"--job", tr.cmdTemplateParams["title"],
+		"--task", tr.Name,
+		"--status", "fail",
+		"--start", tr.StartTime.Format(time.RFC3339),
+		"--end", tr.EndTime.Format(time.RFC3339),
+	)
+	go func() {
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			errorLog.Printf("Notification script failed: %v, output: %s", err, string(out))
+		} else {
+			infoLog.Printf("Notification script executed: %s", string(out))
+		}
+	}()
 }
 
 func restartJobRun(jb *Job, run *JobRun) {

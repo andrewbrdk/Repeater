@@ -387,9 +387,9 @@
 			if (!EVTSOURCE || EVTSOURCE.readyState === EventSource.CLOSED) {
 				EVTSOURCE = new EventSource("/events");
 				EVTSOURCE.onmessage = function (e) {
-					console.log("EventSource message:", e.data);
 					renderPage();
 					//todo: don't redraw the page on every event
+					//console.log("EventSource message:", e.data);
 					//const update = JSON.parse(e.data);
 					//console.log("Update:", update);
 				};
