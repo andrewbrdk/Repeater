@@ -57,8 +57,9 @@ const (
 )
 
 type Task struct {
-	Name string `toml:"name"`
-	Cmd  string `toml:"cmd"`
+	Name   string   `toml:"name"`
+	Cmd    string   `toml:"cmd"`
+	Emails []string `toml:"emails"`
 }
 
 type TaskRun struct {
@@ -70,6 +71,7 @@ type TaskRun struct {
 	Status            RunStatus
 	Attempt           int
 	cmdTemplateParams map[string]string
+	emails            []string
 	ctxCancelFn       context.CancelFunc
 	//todo: store in db
 	lastOutput string
@@ -95,6 +97,7 @@ type Job struct {
 	RunHistory    []*JobRun
 	OnOff         bool
 	NextScheduled time.Time
+	Emails        []string `toml:"emails"`
 }
 
 type JobsAndCron struct {
@@ -350,6 +353,10 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 		StartTime:     time.Now(),
 	}
 	for _, t := range jb.Tasks {
+		emails := t.Emails
+		if len(emails) == 0 {
+			emails = jb.Emails
+		}
 		run.TasksHistory = append(run.TasksHistory, &TaskRun{
 			Name:    t.Name,
 			cmd:     t.Cmd,
@@ -358,7 +365,9 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 			cmdTemplateParams: map[string]string{
 				"title":        jb.Title,
 				"scheduled_dt": run.ScheduledTime.Format("2006-01-02"),
-			}})
+			},
+			emails: emails,
+		})
 	}
 	jb.RunHistory = append(jb.RunHistory, run)
 	return run
@@ -459,13 +468,16 @@ func notifyTaskFailure(tr *TaskRun) {
 	if CONF.notify == "" {
 		return
 	}
-	cmd := exec.Command(CONF.notify,
+	args := []string{
 		"--job", tr.cmdTemplateParams["title"],
 		"--task", tr.Name,
 		"--status", "fail",
 		"--start", tr.StartTime.Format(time.RFC3339),
 		"--end", tr.EndTime.Format(time.RFC3339),
-	)
+		"--emails",
+	}
+	args = append(args, tr.emails...)
+	cmd := exec.Command(CONF.notify, args...)
 	go func() {
 		out, err := cmd.CombinedOutput()
 		if err != nil {
