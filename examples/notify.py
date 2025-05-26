@@ -7,7 +7,7 @@ import os
 import requests
 
 SMTP_SERVER = os.environ.get("REPEATER_SMTP_SERVER", "")
-SMTP_PORT = int(os.environ.get("REPEATER_SMTP_PORT", ""))
+SMTP_PORT = int(os.environ.get("REPEATER_SMTP_PORT", "25"))
 SMTP_USER = os.environ.get("REPEATER_SMTP_USER", "")
 SMTP_PASS = os.environ.get("REPEATER_SMTP_PASS", "")
 EMAIL_FROM = os.environ.get("REPEATER_EMAIL_FROM", "")
@@ -17,7 +17,6 @@ MSG = """
 Task Failed
 Job: {job}
 Task: {task}
-Status: {status}
 Start: {start}
 End: {end}
 """
@@ -57,7 +56,6 @@ def main():
     parser = argparse.ArgumentParser(description="Send notification on task failure")
     parser.add_argument('--job', required=True, help='Job title')
     parser.add_argument('--task', required=True, help='Task name')
-    parser.add_argument('--status', required=True, help='Task status')
     parser.add_argument('--start', required=True, help='Task start time')
     parser.add_argument('--end', required=True, help='Task end time')
     parser.add_argument('--emails', nargs='+', help='List of recipient email addresses')
@@ -73,6 +71,8 @@ def main():
         slack_mentions = " ".join(args.slack) + "\n" if args.slack else ""
         slack_body = slack_mentions + body
         send_slack(slack_body)
+    if not args.emails and not SLACK_WEBHOOK:
+        print("No email or Slack notifications configured, exiting.")
 
 if __name__ == "__main__":
     main()

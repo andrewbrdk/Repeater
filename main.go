@@ -138,7 +138,9 @@ func initConfig() {
 		CONF.jobsDir = jobsDir
 	}
 	CONF.password = os.Getenv("REPEATER_PASSWORD")
-	CONF.notify = os.Getenv("REPEATER_NOTIFY")
+	if notify := os.Getenv("REPEATER_NOTIFY"); notify != "" {
+		CONF.notify = notify
+	}
 }
 
 func generateRandomKey(size int) []byte {
@@ -473,13 +475,13 @@ func executeCmd(ctx context.Context, command string) (string, error) {
 }
 
 func notifyTaskFailure(tr *TaskRun) {
+	infoLog.Printf("notifyTaskFailure called for job: %s, task: %s", tr.cmdTemplateParams["title"], tr.Name)
 	if CONF.notify == "" {
 		return
 	}
 	args := []string{
 		"--job", tr.cmdTemplateParams["title"],
 		"--task", tr.Name,
-		"--status", "fail",
 		"--start", tr.StartTime.Format(time.RFC3339),
 		"--end", tr.EndTime.Format(time.RFC3339),
 	}
@@ -491,7 +493,10 @@ func notifyTaskFailure(tr *TaskRun) {
 		args = append(args, "--slack")
 		args = append(args, tr.slackMentions...)
 	}
-	cmd := exec.Command(CONF.notify, args...)
+	//args = append([]string{"-c", CONF.notify}, args...)
+	//cmd := exec.Command("/bin/bash", args...)
+	args = append([]string{"./examples/notify.py"}, args...)
+	cmd := exec.Command("python3", args...)
 	go func() {
 		out, err := cmd.CombinedOutput()
 		if err != nil {
