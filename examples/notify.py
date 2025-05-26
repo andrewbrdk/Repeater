@@ -6,11 +6,11 @@ import sys
 import os
 import requests
 
-SMTP_SERVER = os.environ.get("REPEATER_SMTP_SERVER", "localhost")
-SMTP_PORT = int(os.environ.get("REPEATER_SMTP_PORT", "25"))
+SMTP_SERVER = os.environ.get("REPEATER_SMTP_SERVER", "")
+SMTP_PORT = int(os.environ.get("REPEATER_SMTP_PORT", ""))
 SMTP_USER = os.environ.get("REPEATER_SMTP_USER", "")
 SMTP_PASS = os.environ.get("REPEATER_SMTP_PASS", "")
-EMAIL_FROM = os.environ.get("REPEATER_EMAIL_FROM", "repeater@example.com")
+EMAIL_FROM = os.environ.get("REPEATER_EMAIL_FROM", "")
 SLACK_WEBHOOK = os.environ.get("REPEATER_SLACK_WEBHOOK", "")
 
 MSG = """
@@ -21,6 +21,7 @@ Status: {status}
 Start: {start}
 End: {end}
 """
+#todo: add link to task
 
 def send_email(subject, body, recipients):
     m = EmailMessage()
@@ -68,8 +69,8 @@ def main():
     if args.emails:
         subject = f"[Repeater] Task Failure: {args.job} / {args.task}"
         send_email(subject, body, args.emails)
-    if args.slack:
-        slack_mentions = " ".join(args.slack) + "\n"
+    if SLACK_WEBHOOK:
+        slack_mentions = " ".join(args.slack) + "\n" if args.slack else ""
         slack_body = slack_mentions + body
         send_slack(slack_body)
 

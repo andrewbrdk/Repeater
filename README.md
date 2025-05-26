@@ -31,9 +31,17 @@ ClickHouse: [http://localhost:8123](http://localhost:8123) and [http://localhost
 
 Optional environmental variables:
 ```bash
-REPEATER_PORT=":8080"                   # web server port  
-REPEATER_PASSWORD=""                    # web auth password
-REPEATER_JOBS_DIRECTORY="./examples/"   # jobs directory
+REPEATER_PORT=":8080"                          # web server port  
+REPEATER_PASSWORD=""                           # web auth password
+REPEATER_JOBS_DIRECTORY="./examples/"          # jobs directory
+REPEATER_NOTIFY="python3 ./examples/notify.py" # task failure notification script
+# Notification script parameters
+REPEATER_SLACK_WEBHOOK=""
+REPEATER_SMTP_SERVER=""
+REPEATER_SMTP_PORT=""
+REPEATER_SMTP_USER=""
+REPEATER_SMTP_PASS=""
+REPEATER_EMAIL_FROM=""
 ```
 
 Task `cmd` [parameters](https://github.com/andrewbrdk/Repeater/blob/main/examples/templated_args.job):

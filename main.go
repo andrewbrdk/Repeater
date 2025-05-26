@@ -57,9 +57,10 @@ const (
 )
 
 type Task struct {
-	Name   string   `toml:"name"`
-	Cmd    string   `toml:"cmd"`
-	Emails []string `toml:"emails"`
+	Name          string   `toml:"name"`
+	Cmd           string   `toml:"cmd"`
+	Emails        []string `toml:"emails"`
+	SlackMentions []string `toml:"slack"`
 }
 
 type TaskRun struct {
@@ -72,6 +73,7 @@ type TaskRun struct {
 	Attempt           int
 	cmdTemplateParams map[string]string
 	emails            []string
+	slackMentions     []string
 	ctxCancelFn       context.CancelFunc
 	//todo: store in db
 	lastOutput string
@@ -98,6 +100,7 @@ type Job struct {
 	OnOff         bool
 	NextScheduled time.Time
 	Emails        []string `toml:"emails"`
+	SlackMentions []string `toml:"slack"`
 }
 
 type JobsAndCron struct {
@@ -127,7 +130,7 @@ func initConfig() {
 	CONF.port = ":8080"
 	CONF.jobsDir = "./examples/"
 	CONF.password = ""
-	CONF.notify = "./examples/notify.py"
+	CONF.notify = "python3 ./examples/notify.py"
 	if port := os.Getenv("REPEATER_PORT"); port != "" {
 		CONF.port = port
 	}
@@ -357,6 +360,10 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 		if len(emails) == 0 {
 			emails = jb.Emails
 		}
+		slackMentions := t.SlackMentions
+		if len(slackMentions) == 0 {
+			slackMentions = jb.SlackMentions
+		}
 		run.TasksHistory = append(run.TasksHistory, &TaskRun{
 			Name:    t.Name,
 			cmd:     t.Cmd,
@@ -366,7 +373,8 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 				"title":        jb.Title,
 				"scheduled_dt": run.ScheduledTime.Format("2006-01-02"),
 			},
-			emails: emails,
+			emails:        emails,
+			slackMentions: slackMentions,
 		})
 	}
 	jb.RunHistory = append(jb.RunHistory, run)
@@ -474,9 +482,15 @@ func notifyTaskFailure(tr *TaskRun) {
 		"--status", "fail",
 		"--start", tr.StartTime.Format(time.RFC3339),
 		"--end", tr.EndTime.Format(time.RFC3339),
-		"--emails",
 	}
-	args = append(args, tr.emails...)
+	if len(tr.emails) > 0 {
+		args = append(args, "--emails")
+		args = append(args, tr.emails...)
+	}
+	if len(tr.slackMentions) > 0 {
+		args = append(args, "--slack")
+		args = append(args, tr.slackMentions...)
+	}
 	cmd := exec.Command(CONF.notify, args...)
 	go func() {
 		out, err := cmd.CombinedOutput()
