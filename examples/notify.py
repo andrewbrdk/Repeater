@@ -24,6 +24,9 @@ End: {end}
 #todo: add link to task
 
 def send_email(subject, body, recipients):
+    if not SMTP_SERVER:
+        print("No SMTP_SERVER configured, skipping email notification.", file=sys.stderr)
+        return
     m = EmailMessage()
     m['Subject'] = subject
     m['From'] = EMAIL_FROM
@@ -52,6 +55,7 @@ def send_slack(body):
     except Exception as e:
         print(f"Failed to send Slack notification: {e}", file=sys.stderr)
 
+
 def main():
     parser = argparse.ArgumentParser(description="Send notification on task failure")
     parser.add_argument('--job', required=True, help='Job title')
@@ -59,7 +63,6 @@ def main():
     parser.add_argument('--start', required=True, help='Task start time')
     parser.add_argument('--end', required=True, help='Task end time')
     parser.add_argument('--emails', nargs='+', help='List of recipient email addresses')
-    parser.add_argument('--slack', nargs='+', help='List of Slack username mentions (e.g. @user)')
     args = parser.parse_args()
 
     body = MSG.format(**vars(args))
@@ -68,9 +71,7 @@ def main():
         subject = f"[Repeater] Task Failure: {args.job} / {args.task}"
         send_email(subject, body, args.emails)
     if SLACK_WEBHOOK:
-        slack_mentions = " ".join(args.slack) + "\n" if args.slack else ""
-        slack_body = slack_mentions + body
-        send_slack(slack_body)
+        send_slack(body)
     if not args.emails and not SLACK_WEBHOOK:
         print("No email or Slack notifications configured, exiting.")
 

@@ -57,10 +57,9 @@ const (
 )
 
 type Task struct {
-	Name          string   `toml:"name"`
-	Cmd           string   `toml:"cmd"`
-	Emails        []string `toml:"emails"`
-	SlackMentions []string `toml:"slack"`
+	Name   string   `toml:"name"`
+	Cmd    string   `toml:"cmd"`
+	Emails []string `toml:"emails"`
 }
 
 type TaskRun struct {
@@ -73,7 +72,6 @@ type TaskRun struct {
 	Attempt           int
 	cmdTemplateParams map[string]string
 	emails            []string
-	slackMentions     []string
 	ctxCancelFn       context.CancelFunc
 	//todo: store in db
 	lastOutput string
@@ -100,7 +98,6 @@ type Job struct {
 	OnOff         bool
 	NextScheduled time.Time
 	Emails        []string `toml:"emails"`
-	SlackMentions []string `toml:"slack"`
 }
 
 type JobsAndCron struct {
@@ -362,10 +359,6 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 		if len(emails) == 0 {
 			emails = jb.Emails
 		}
-		slackMentions := t.SlackMentions
-		if len(slackMentions) == 0 {
-			slackMentions = jb.SlackMentions
-		}
 		run.TasksHistory = append(run.TasksHistory, &TaskRun{
 			Name:    t.Name,
 			cmd:     t.Cmd,
@@ -375,8 +368,7 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 				"title":        jb.Title,
 				"scheduled_dt": run.ScheduledTime.Format("2006-01-02"),
 			},
-			emails:        emails,
-			slackMentions: slackMentions,
+			emails: emails,
 		})
 	}
 	jb.RunHistory = append(jb.RunHistory, run)
@@ -480,24 +472,22 @@ func notifyTaskFailure(tr *TaskRun) {
 		return
 	}
 	// todo: simplify
-	const notifyCmdTemplate = `{{.Notify}} --job "{{.Job}}" --task "{{.Task}}" --start "{{.Start}}" --end "{{.End}}" {{if .Emails}}--emails {{range .Emails}}"{{.}}" {{end}}{{end}} {{if .SlackMentions}}--slack {{range .SlackMentions}}"{{.}}" {{end}}{{end}}`
+	const notifyCmdTemplate = `{{.Notify}} --job "{{.Job}}" --task "{{.Task}}" --start "{{.Start}}" --end "{{.End}}" {{if .Emails}}--emails {{range .Emails}}"{{.}}" {{end}}{{end}}`
 	type NotifyParams struct {
-		Notify        string
-		Job           string
-		Task          string
-		Start         string
-		End           string
-		Emails        []string
-		SlackMentions []string
+		Notify string
+		Job    string
+		Task   string
+		Start  string
+		End    string
+		Emails []string
 	}
 	data := NotifyParams{
-		Notify:        CONF.notify,
-		Job:           tr.cmdTemplateParams["title"],
-		Task:          tr.Name,
-		Start:         tr.StartTime.Format(time.RFC3339),
-		End:           tr.EndTime.Format(time.RFC3339),
-		Emails:        tr.emails,
-		SlackMentions: tr.slackMentions,
+		Notify: CONF.notify,
+		Job:    tr.cmdTemplateParams["title"],
+		Task:   tr.Name,
+		Start:  tr.StartTime.Format(time.RFC3339),
+		End:    tr.EndTime.Format(time.RFC3339),
+		Emails: tr.emails,
 	}
 	tmpl, err := texttemplate.New("notify").Parse(notifyCmdTemplate)
 	if err != nil {
