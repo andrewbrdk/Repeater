@@ -7,10 +7,11 @@ import os
 import requests
 
 SMTP_SERVER = os.environ.get("REPEATER_SMTP_SERVER", "")
-SMTP_PORT = int(os.environ.get("REPEATER_SMTP_PORT", "25"))
+SMTP_PORT = int(os.environ.get("REPEATER_SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("REPEATER_SMTP_USER", "")
 SMTP_PASS = os.environ.get("REPEATER_SMTP_PASS", "")
 EMAIL_FROM = os.environ.get("REPEATER_EMAIL_FROM", "")
+SMTP_TIMEOUT_SECONDS = 10
 SLACK_WEBHOOK = os.environ.get("REPEATER_SLACK_WEBHOOK", "")
 
 MSG = """
@@ -29,14 +30,13 @@ def send_email(subject, body, recipients):
     m['To'] = ', '.join(recipients)
     m.set_content(body)
     try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            if SMTP_USER and SMTP_PASS:
-                server.starttls()
-                server.login(SMTP_USER, SMTP_PASS)
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
             server.send_message(m)
-        print("Notification email sent.")
+            print("Email sent successfully.")
     except Exception as e:
-        print(f"Failed to send notification email: {e}", file=sys.stderr)
+        print(f"Error sending email: {e}")
 
 def send_slack(body):
     if not SLACK_WEBHOOK:

@@ -479,30 +479,45 @@ func notifyTaskFailure(tr *TaskRun) {
 	if CONF.notify == "" {
 		return
 	}
-	args := []string{
-		"--job", tr.cmdTemplateParams["title"],
-		"--task", tr.Name,
-		"--start", tr.StartTime.Format(time.RFC3339),
-		"--end", tr.EndTime.Format(time.RFC3339),
+	// todo: simplify
+	const notifyCmdTemplate = `{{.Notify}} --job "{{.Job}}" --task "{{.Task}}" --start "{{.Start}}" --end "{{.End}}" {{if .Emails}}--emails {{range .Emails}}"{{.}}" {{end}}{{end}} {{if .SlackMentions}}--slack {{range .SlackMentions}}"{{.}}" {{end}}{{end}}`
+	type NotifyParams struct {
+		Notify        string
+		Job           string
+		Task          string
+		Start         string
+		End           string
+		Emails        []string
+		SlackMentions []string
 	}
-	if len(tr.emails) > 0 {
-		args = append(args, "--emails")
-		args = append(args, tr.emails...)
+	data := NotifyParams{
+		Notify:        CONF.notify,
+		Job:           tr.cmdTemplateParams["title"],
+		Task:          tr.Name,
+		Start:         tr.StartTime.Format(time.RFC3339),
+		End:           tr.EndTime.Format(time.RFC3339),
+		Emails:        tr.emails,
+		SlackMentions: tr.slackMentions,
 	}
-	if len(tr.slackMentions) > 0 {
-		args = append(args, "--slack")
-		args = append(args, tr.slackMentions...)
+	tmpl, err := texttemplate.New("notify").Parse(notifyCmdTemplate)
+	if err != nil {
+		errorLog.Printf("Failed to parse notify template: %v", err)
+		return
 	}
-	//args = append([]string{"-c", CONF.notify}, args...)
-	//cmd := exec.Command("/bin/bash", args...)
-	args = append([]string{"./examples/notify.py"}, args...)
-	cmd := exec.Command("python3", args...)
+	var sb strings.Builder
+	if err := tmpl.Execute(&sb, data); err != nil {
+		errorLog.Printf("Failed to execute notify template: %v", err)
+		return
+	}
+	command := sb.String()
+	infoLog.Printf("Executing notification command: %s", command)
+	cmd := exec.Command("/bin/bash", "-c", command)
 	go func() {
-		out, err := cmd.CombinedOutput()
+		output, err := cmd.CombinedOutput()
 		if err != nil {
-			errorLog.Printf("Notification script failed: %v, output: %s", err, string(out))
+			errorLog.Printf("Notification script failed: %v, output: %s", err, output)
 		} else {
-			infoLog.Printf("Notification script executed: %s", string(out))
+			infoLog.Printf("Notification script executed: %s", output)
 		}
 	}()
 }
