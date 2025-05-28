@@ -1,0 +1,11 @@
+title = "email_on_failure"
+emails = ["yourmail@example.com"]
+
+[[tasks]]
+name = "task1"
+cmd = "echo task1 && (($RANDOM % 2 != 0))" 
+emails = ["taskmail@example.com"]
+
+[[tasks]]
+name = "task2"
+cmd = "echo task2 && (($RANDOM % 2 != 0))" 

@@ -104,7 +104,7 @@ type JobsAndCron struct {
 	Jobs []*Job
 	cron *cron.Cron
 	//todo: add config, make global?
-	//no need for mutex
+	//no need for mutex?
 	//Jobs is modified from scanAndScheduleJobs only
 	//calls to scanAndScheduleJobs don't overlap
 }
@@ -249,8 +249,6 @@ func removeJobsWithoutFiles(files map[string][16]byte, JC *JobsAndCron) {
 		for _, jb_idx := range toremove {
 			JC.cron.Remove(JC.Jobs[jb_idx].cronID)
 			//todo: terminate running commands before removing
-			//range over
-			//check manually restarted tasks
 			JC.Jobs[jb_idx] = JC.Jobs[last_idx]
 			last_idx = last_idx - 1
 		}
@@ -499,6 +497,7 @@ func notifyTaskFailure(tr *TaskRun) {
 		errorLog.Printf("Failed to execute notify template: %v", err)
 		return
 	}
+	//todo: add timeout
 	command := sb.String()
 	infoLog.Printf("Executing notification command: %s", command)
 	cmd := exec.Command("/bin/bash", "-c", command)
