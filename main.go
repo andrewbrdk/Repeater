@@ -57,9 +57,10 @@ const (
 )
 
 type Task struct {
-	Name   string   `toml:"name"`
-	Cmd    string   `toml:"cmd"`
-	Emails []string `toml:"emails"`
+	Name    string   `toml:"name"`
+	Cmd     string   `toml:"cmd"`
+	Emails  []string `toml:"emails"`
+	Retries int      `toml:"retries"`
 }
 
 type TaskRun struct {
@@ -72,6 +73,7 @@ type TaskRun struct {
 	Attempt           int
 	cmdTemplateParams map[string]string
 	emails            []string
+	retries           int
 	ctxCancelFn       context.CancelFunc
 	//todo: store in db
 	lastOutput string
@@ -97,6 +99,7 @@ type Job struct {
 	RunHistory    []*JobRun
 	OnOff         bool
 	NextScheduled time.Time
+	Retries       int      `toml:"retries"`
 	Emails        []string `toml:"emails"`
 }
 
@@ -203,7 +206,8 @@ func scanAndScheduleJobs(JC *JobsAndCron) {
 	sort.SliceStable(JC.Jobs, func(i, j int) bool {
 		return JC.Jobs[i].Title < JC.Jobs[j].Title
 	})
-	//todo: broadcastUpdate
+	//todo: gen_event()
+	broadcastSSEUpdate(`{"event": "jobs_updated"}`)
 }
 
 func scanFiles(files map[string][16]byte) error {
@@ -357,6 +361,10 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 		if len(emails) == 0 {
 			emails = jb.Emails
 		}
+		retries := t.Retries
+		if retries == 0 {
+			retries = jb.Retries
+		}
 		run.TasksHistory = append(run.TasksHistory, &TaskRun{
 			Name:    t.Name,
 			cmd:     t.Cmd,
@@ -366,7 +374,8 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 				"title":        jb.Title,
 				"scheduled_dt": run.ScheduledTime.Format("2006-01-02"),
 			},
-			emails: emails,
+			emails:  emails,
+			retries: retries,
 		})
 	}
 	jb.RunHistory = append(jb.RunHistory, run)
@@ -375,6 +384,7 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 
 func runJob(run *JobRun, jb *Job) error {
 	//todo: check race conditions
+	var err error
 	ctx, cancel := context.WithCancel(context.Background())
 	run.ctxCancelFn = cancel
 	defer func() {
@@ -388,9 +398,18 @@ func runJob(run *JobRun, jb *Job) error {
 	broadcastSSEUpdate(fmt.Sprintf(`{"event": "job_running", "name": "%s"}`, jb.Title))
 	var jobFail bool
 	for _, tr := range run.TasksHistory {
-		err := runTask(ctx, tr)
-		if err != nil {
-			jobFail = true
+		for attempt := 1; attempt <= tr.retries+1; attempt++ {
+			err = runTask(ctx, tr)
+			if err == nil {
+				break
+			}
+			errorLog.Printf("Task '%s' failed (attempt %d/%d)", tr.Name, attempt, tr.retries+1)
+			if attempt > tr.retries {
+				jobFail = true
+				break
+			}
+		}
+		if jobFail {
 			break
 		}
 	}
@@ -521,6 +540,7 @@ func restartJobRun(jb *Job, run *JobRun) {
 		tr.EndTime = time.Time{}
 		tr.RenderedCmd = ""
 		tr.lastOutput = ""
+		tr.Attempt = 0
 	}
 	go runJob(run, jb)
 }
