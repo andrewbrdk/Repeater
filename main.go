@@ -299,6 +299,18 @@ func processJobFile(filePath string) (*Job, error) {
 			return nil, nil
 		}
 	}
+	if jb.Retries < 0 {
+		errorLog.Printf("Job '%s' has negative retries (%d), setting to 0", jb.Title, jb.Retries)
+		webLog.Printf("Job '%s' has negative retries (%d), setting to 0", jb.Title, jb.Retries)
+		jb.Retries = 0
+	}
+	for _, t := range jb.Tasks {
+		if t.Retries < 0 {
+			errorLog.Printf("Task '%s' in job '%s' has negative retries (%d), setting to 0", t.Name, jb.Title, t.Retries)
+			webLog.Printf("Task '%s' in job '%s' has negative retries (%d), setting to 0", t.Name, jb.Title, t.Retries)
+			t.Retries = 0
+		}
+	}
 	//todo: move parser spec into JobsAndCron
 	specParser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	_, err = specParser.Parse(jb.Cron)
@@ -399,6 +411,7 @@ func runJob(run *JobRun, jb *Job) error {
 	var jobFail bool
 	for _, tr := range run.TasksHistory {
 		for attempt := 1; attempt <= tr.retries+1; attempt++ {
+			infoLog.Printf("Running task '%s' (attempt %d/%d)", tr.Name, attempt, tr.retries+1)
 			err = runTask(ctx, tr)
 			if err == nil {
 				break

@@ -1,4 +1,5 @@
 title = "email_on_failure"
+retries = 1
 emails = ["yourmail@example.com"]
 
 [[tasks]]
@@ -9,3 +10,4 @@ emails = ["taskmail@example.com"]
 [[tasks]]
 name = "task2"
 cmd = "echo task2 && (($RANDOM % 2 != 0))" 
+retries = 2
