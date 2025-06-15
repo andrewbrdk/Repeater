@@ -517,12 +517,14 @@ func executeCmd(ctx context.Context, command string) (string, error) {
 		Setpgid:   true,
 		Pdeathsig: syscall.SIGKILL,
 	}
-	output, err := cmd.CombinedOutput()
-
-	if ctx.Err() != nil {
+	go func() {
+		<-ctx.Done()
 		if cmd.Process != nil {
 			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		}
+	}()
+	output, err := cmd.CombinedOutput()
+	if ctx.Err() != nil {
 		return string(output), ctx.Err()
 	}
 	return string(output), err
