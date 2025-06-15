@@ -498,13 +498,14 @@ func runTask(ctx context.Context, tr *TaskRun) error {
 	}()
 	broadcastSSEUpdate(fmt.Sprintf(`{"event": "task_running", "name": "%s"}`, tr.Name))
 	output, err := executeCmd(execCtx, tr.RenderedCmd)
-	tr.lastOutput = output
 	tr.EndTime = time.Now()
 	if err != nil {
 		errorLog.Printf("Error executing '%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, err)
+		tr.lastOutput = output + "\nERROR: " + err.Error()
 		tr.Status = RunFailure
 		notifyTaskFailure(tr)
 	} else {
+		tr.lastOutput = output
 		tr.Status = RunSuccess
 	}
 	broadcastSSEUpdate(fmt.Sprintf(`{"event": "task_finished", "name": "%s"}`, tr.Name))
