@@ -57,10 +57,11 @@ const (
 )
 
 type Task struct {
-	Name    string   `toml:"name"`
-	Cmd     string   `toml:"cmd"`
-	Emails  []string `toml:"emails"`
-	Retries int      `toml:"retries"`
+	Name       string   `toml:"name"`
+	Cmd        string   `toml:"cmd"`
+	Emails     []string `toml:"emails"`
+	Retries    int      `toml:"retries"`
+	TimeoutSec int      `toml:"timeout"`
 }
 
 type TaskRun struct {
@@ -74,6 +75,7 @@ type TaskRun struct {
 	cmdTemplateParams map[string]string
 	emails            []string
 	retries           int
+	timeout           int
 	ctxCancelFn       context.CancelFunc
 	//todo: store in db
 	lastOutput string
@@ -89,18 +91,19 @@ type JobRun struct {
 }
 
 type Job struct {
-	file          string
-	md5           [16]byte
-	Title         string `toml:"title"`
-	Cron          string `toml:"cron"`
-	HCron         string
-	Tasks         []*Task `toml:"tasks"`
-	cronID        cron.EntryID
-	RunHistory    []*JobRun
-	OnOff         bool
-	NextScheduled time.Time
-	Retries       int      `toml:"retries"`
-	Emails        []string `toml:"emails"`
+	file           string
+	md5            [16]byte
+	Title          string `toml:"title"`
+	Cron           string `toml:"cron"`
+	HCron          string
+	Tasks          []*Task `toml:"tasks"`
+	cronID         cron.EntryID
+	RunHistory     []*JobRun
+	OnOff          bool
+	NextScheduled  time.Time
+	Retries        int      `toml:"retries"`
+	TaskTimeoutSec int      `toml:"task_timeout"`
+	Emails         []string `toml:"emails"`
 }
 
 type JobsAndCron struct {
@@ -311,6 +314,18 @@ func processJobFile(filePath string) (*Job, error) {
 			t.Retries = 0
 		}
 	}
+	if jb.TaskTimeoutSec < 0 {
+		errorLog.Printf("Job '%s' has negative task_timeout (%d), setting to 0", jb.Title, jb.TaskTimeoutSec)
+		webLog.Printf("Job '%s' has negative task_timeout (%d), setting to 0", jb.Title, jb.TaskTimeoutSec)
+		jb.TaskTimeoutSec = 0
+	}
+	for _, t := range jb.Tasks {
+		if t.TimeoutSec < 0 {
+			errorLog.Printf("Task '%s' in job '%s' has negative timeout (%d), setting to 0", t.Name, jb.Title, t.TimeoutSec)
+			webLog.Printf("Task '%s' in job '%s' has negative timeout (%d), setting to 0", t.Name, jb.Title, t.TimeoutSec)
+			t.TimeoutSec = 0
+		}
+	}
 	//todo: move parser spec into JobsAndCron
 	specParser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	_, err = specParser.Parse(jb.Cron)
@@ -377,6 +392,10 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 		if retries == 0 {
 			retries = jb.Retries
 		}
+		timeout := t.TimeoutSec
+		if timeout == 0 {
+			timeout = jb.TaskTimeoutSec
+		}
 		run.TasksHistory = append(run.TasksHistory, &TaskRun{
 			Name:    t.Name,
 			cmd:     t.Cmd,
@@ -386,8 +405,9 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 				"title":        jb.Title,
 				"scheduled_dt": run.ScheduledTime.Format("2006-01-02"),
 			},
-			emails:  emails,
 			retries: retries,
+			timeout: timeout,
+			emails:  emails,
 		})
 	}
 	jb.RunHistory = append(jb.RunHistory, run)
@@ -453,11 +473,23 @@ func runTask(ctx context.Context, tr *TaskRun) error {
 	tr.Attempt += 1
 	tr.RenderedCmd = sb.String()
 	tr.Status = Running
+	//
+	var execCtx context.Context
+	var timeoutFunc context.CancelFunc
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	ctx, cancel := context.WithCancel(ctx)
-	tr.ctxCancelFn = cancel
+	cancelCtx, cancelFunc := context.WithCancel(ctx)
+	if tr.timeout > 0 {
+		execCtx, timeoutFunc = context.WithTimeout(cancelCtx, time.Duration(tr.timeout)*time.Second)
+	} else {
+		execCtx = cancelCtx
+		timeoutFunc = func() {}
+	}
+	tr.ctxCancelFn = func() {
+		timeoutFunc()
+		cancelFunc()
+	}
 	defer func() {
 		if tr.ctxCancelFn != nil {
 			tr.ctxCancelFn()
@@ -465,7 +497,7 @@ func runTask(ctx context.Context, tr *TaskRun) error {
 		}
 	}()
 	broadcastSSEUpdate(fmt.Sprintf(`{"event": "task_running", "name": "%s"}`, tr.Name))
-	output, err := executeCmd(ctx, tr.RenderedCmd)
+	output, err := executeCmd(execCtx, tr.RenderedCmd)
 	tr.lastOutput = output
 	tr.EndTime = time.Now()
 	if err != nil {
