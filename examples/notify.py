@@ -29,7 +29,7 @@ def send_email(subject, body, recipients):
     try:
         with smtplib.SMTP(SMTP.get('server'), SMTP.get('port'), timeout=SMTP.get('timeout')) as server:
             server.starttls()
-            server.login(SMPT.get('username'), SMTP.get('password'))
+            server.login(SMTP.get('username'), SMTP.get('password'))
             server.send_message(m)
             print("Email sent successfully.")
     except Exception as e:
@@ -64,9 +64,9 @@ def main():
     if args.emails:
         subject = f"[Repeater] Task Failure: {args.job} / {args.task}"
         send_email(subject, body, args.emails)
-    if SLACK_WEBHOOK:
+    if SLACK.get('webhook'):
         send_slack(body)
-    if not args.emails and not SLACK_WEBHOOK:
+    if not args.emails and not SLACK.get('webhook'):
         print("No email or Slack notifications configured, exiting.")
 
 if __name__ == "__main__":
