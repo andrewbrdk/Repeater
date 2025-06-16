@@ -3,7 +3,7 @@ import clickhouse_connect
 import streamlit as st
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from db_connections import CHCON
+from connections import CHCON
 
 client = clickhouse_connect.get_client(**CHCON)
 

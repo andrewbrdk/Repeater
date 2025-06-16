@@ -3,7 +3,7 @@ import requests
 import argparse
 from datetime import datetime, timedelta
 import clickhouse_connect
-from db_connections import CHCON
+from connections import CHCON
 
 # https://www.coinlore.com/cryptocurrency-data-api
 

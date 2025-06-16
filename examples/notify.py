@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
+import os
+import sys
+import requests
 import argparse
 import smtplib
 from email.message import EmailMessage
-import sys
-import os
-import requests
 
-SMTP_SERVER = os.environ.get("REPEATER_SMTP_SERVER", "")
-SMTP_PORT = int(os.environ.get("REPEATER_SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("REPEATER_SMTP_USER", "")
-SMTP_PASS = os.environ.get("REPEATER_SMTP_PASS", "")
-EMAIL_FROM = os.environ.get("REPEATER_EMAIL_FROM", "")
-SMTP_TIMEOUT_SECONDS = 10
-SLACK_WEBHOOK = os.environ.get("REPEATER_SLACK_WEBHOOK", "")
+from connections import SMTP, SLACK
 
 MSG = """
 Task Failed
@@ -24,30 +18,30 @@ End: {end}
 #todo: add link to task
 
 def send_email(subject, body, recipients):
-    if not SMTP_SERVER:
-        print("No SMTP_SERVER configured, skipping email notification.", file=sys.stderr)
+    if not SMTP.get('server'):
+        print("No SMTP server configured, skipping email notification.", file=sys.stderr)
         return
     m = EmailMessage()
     m['Subject'] = subject
-    m['From'] = EMAIL_FROM
+    m['From'] = SMTP.get('email_from')
     m['To'] = ', '.join(recipients)
     m.set_content(body)
     try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
+        with smtplib.SMTP(SMTP.get('server'), SMTP.get('port'), timeout=SMTP.get('timeout')) as server:
             server.starttls()
-            server.login(SMTP_USER, SMTP_PASS)
+            server.login(SMPT.get('username'), SMTP.get('password'))
             server.send_message(m)
             print("Email sent successfully.")
     except Exception as e:
         print(f"Error sending email: {e}")
 
 def send_slack(body):
-    if not SLACK_WEBHOOK:
+    if not SLACK.get('webhook'):
         print("No Slack webhook configured, skipping Slack notification.", file=sys.stderr)
         return
     payload = {"text": body}
     try:
-        resp = requests.post(SLACK_WEBHOOK, json=payload, timeout=10)
+        resp = requests.post(SLACK.get('webhook'), json=payload, timeout=10)
         if resp.status_code >= 300:
             print(f"Slack notification failed: {resp.status_code} {resp.text}", file=sys.stderr)
         else:

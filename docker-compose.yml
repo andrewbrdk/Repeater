@@ -55,7 +55,7 @@ services:
       - "8002:8501"
     volumes:
       - ./examples/streamlit.py:/app/streamlit.py:ro
-      - ./examples/db_connections.py:/app/db_connections.py:ro
+      - ./examples/connections.py:/app/connections.py:ro
 
 volumes:
   clickhouse_repeater:

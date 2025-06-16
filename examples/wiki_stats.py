@@ -2,7 +2,7 @@ import sys
 import requests
 from datetime import datetime
 import clickhouse_connect
-from db_connections import CHCON
+from connections import CHCON
 
 # https://www.mediawiki.org/wiki/API:Siteinfo
 language = 'en'

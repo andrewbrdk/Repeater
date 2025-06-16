@@ -3,7 +3,7 @@ import requests
 import argparse
 from datetime import datetime, timedelta
 import clickhouse_connect
-from db_connections import CHCON
+from connections import CHCON
 
 # https://doc.wikimedia.org/generated-data-platform/aqs/analytics-api/concepts/page-views.html
 # https://doc.wikimedia.org/generated-data-platform/aqs/analytics-api/reference/page-views.html
