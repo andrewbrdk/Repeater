@@ -37,8 +37,26 @@ REPEATER_JOBS_DIRECTORY="./examples/"          # jobs directory
 REPEATER_NOTIFY="python3 ./examples/notify.py" # task failure notification script
 ```
 
-Task `cmd` [parameters](https://github.com/andrewbrdk/Repeater/blob/main/examples/templated_args.job):
+Job file example
 ```
-{{.title}} - job title
-{{.scheduled_dt}} - current run scheduled date in YYYY-MM-DD
+title = "example"
+cron = "*/15 * * * * *"            # cron schedule with seconds, optional
+retries = 1                        # task retries, optional
+task_timeout = 5                   # execution timeout, seconds, optional
+emails = ["yourmail@example.com"]  # email on failure, optional
+
+[[tasks]]
+name = "hello_world"
+cmd = "echo Hello, world"
+timeout = 15                       # overrides job-level task_timeout 
+retries = 2                        # overrides job-level retries
+emails = ["taskmail@example.com"]  # overrides job-level emails
+
+[[tasks]]
+name = "echo_args" 
+cmd = "echo \"{{.title}}\" {{.scheduled_dt}}"
+
+#cmd templated args:
+#{{.title}} - job title
+#{{.scheduled_dt}} - current run scheduled date in YYYY-MM-DD
 ```
