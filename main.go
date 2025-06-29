@@ -20,6 +20,7 @@ import (
 	"syscall"
 	texttemplate "text/template"
 	"time"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 	"github.com/fsnotify/fsnotify"
@@ -544,10 +545,10 @@ func saveOutputOnDisk(output string, tr *TaskRun) {
 		errorLog.Printf("Failed to create logs directory %s: %v", CONF.logsDir, err)
 		return
 	}
-	tr.logfile = fmt.Sprintf("taskrun_%s_%s_%d.log",
-		tr.cmdTemplateParams["title"],
-		tr.Name,
-		tr.Attempt,
+	tr.logfile = fmt.Sprintf("%s_%s_%s.log",
+		tr.StartTime.Format("20060102T150405"),
+		escapeName(tr.cmdTemplateParams["title"]),
+		escapeName(tr.Name),
 	)
 	filename := filepath.Join(CONF.logsDir, tr.logfile)
 	if err := os.WriteFile(filename, []byte(output), 0644); err != nil {
@@ -556,9 +557,21 @@ func saveOutputOnDisk(output string, tr *TaskRun) {
 	infoLog.Printf("Task output saved to %s", filename)
 }
 
+func escapeName(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+	return b.String()
+}
+
 func readTaskOutput(tr *TaskRun) (string, error) {
 	if tr.logfile == "" {
-		return "", fmt.Errorf("no logfile recorded for this task run")
+		return "", nil
 	}
 	filename := filepath.Join(CONF.logsDir, tr.logfile)
 	data, err := os.ReadFile(filename)
@@ -959,7 +972,7 @@ func httpLastOutput(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQuery
 	output, err = readTaskOutput(t)
 	if err != nil {
 		errorLog.Printf("Failed to read task run log: %v", err)
-		http.Error(w, "Failed to read task run log", http.StatusInternalServerError)
+		http.Error(w, "ERROR: Failed to read task run log", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
