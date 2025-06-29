@@ -45,6 +45,7 @@ type Config struct {
 	jobsDir  string
 	password string
 	notify   string
+	logsDir  string
 }
 
 type RunStatus int
@@ -77,8 +78,7 @@ type TaskRun struct {
 	retries           int
 	timeout           int
 	ctxCancelFn       context.CancelFunc
-	//todo: store in db
-	lastOutput string
+	logfile           string
 }
 
 type JobRun struct {
@@ -134,6 +134,7 @@ func initConfig() {
 	CONF.jobsDir = "./examples/"
 	CONF.password = ""
 	CONF.notify = "python3 ./examples/notify.py"
+	CONF.logsDir = "/tmp/repeater/"
 	if port := os.Getenv("REPEATER_PORT"); port != "" {
 		CONF.port = port
 	}
@@ -143,6 +144,9 @@ func initConfig() {
 	CONF.password = os.Getenv("REPEATER_PASSWORD")
 	if notify := os.Getenv("REPEATER_NOTIFY"); notify != "" {
 		CONF.notify = notify
+	}
+	if logsDir := os.Getenv("REPEATER_LOGS_DIRECTORY"); logsDir != "" {
+		CONF.logsDir = logsDir
 	}
 }
 
@@ -408,6 +412,7 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 			retries: retries,
 			timeout: timeout,
 			emails:  emails,
+			logfile: "",
 		})
 	}
 	jb.RunHistory = append(jb.RunHistory, run)
@@ -501,13 +506,13 @@ func runTask(ctx context.Context, tr *TaskRun) error {
 	tr.EndTime = time.Now()
 	if err != nil {
 		errorLog.Printf("Error executing '%s'-'%s': %v\n", tr.cmdTemplateParams["title"], tr.Name, err)
-		tr.lastOutput = output + "\nERROR: " + err.Error()
+		output = output + "\nERROR: " + err.Error()
 		tr.Status = RunFailure
 		notifyTaskFailure(tr)
 	} else {
-		tr.lastOutput = output
 		tr.Status = RunSuccess
 	}
+	saveOutputOnDisk(output, tr)
 	broadcastSSEUpdate(fmt.Sprintf(`{"event": "task_finished", "name": "%s"}`, tr.Name))
 	return err
 }
@@ -529,6 +534,38 @@ func executeCmd(ctx context.Context, command string) (string, error) {
 		return string(output), ctx.Err()
 	}
 	return string(output), err
+}
+
+func saveOutputOnDisk(output string, tr *TaskRun) {
+	if CONF.logsDir == "" {
+		return
+	}
+	if err := os.MkdirAll(CONF.logsDir, 0755); err != nil {
+		errorLog.Printf("Failed to create logs directory %s: %v", CONF.logsDir, err)
+		return
+	}
+	tr.logfile = fmt.Sprintf("taskrun_%s_%s_%d.log",
+		tr.cmdTemplateParams["title"],
+		tr.Name,
+		tr.Attempt,
+	)
+	filename := filepath.Join(CONF.logsDir, tr.logfile)
+	if err := os.WriteFile(filename, []byte(output), 0644); err != nil {
+		errorLog.Printf("Failed to write task output to file %s: %v", filename, err)
+	}
+	infoLog.Printf("Task output saved to %s", filename)
+}
+
+func readTaskOutput(tr *TaskRun) (string, error) {
+	if tr.logfile == "" {
+		return "", fmt.Errorf("no logfile recorded for this task run")
+	}
+	filename := filepath.Join(CONF.logsDir, tr.logfile)
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return "", fmt.Errorf("failed to read logfile %s: %w", tr.logfile, err)
+	}
+	return string(data), nil
 }
 
 func notifyTaskFailure(tr *TaskRun) {
@@ -587,7 +624,7 @@ func restartJobRun(jb *Job, run *JobRun) {
 		tr.StartTime = time.Time{}
 		tr.EndTime = time.Time{}
 		tr.RenderedCmd = ""
-		tr.lastOutput = ""
+		tr.logfile = ""
 		tr.Attempt = 0
 	}
 	go runJob(run, jb)
@@ -614,7 +651,7 @@ func cancelTaskRun(taskRun *TaskRun, jobRun *JobRun) {
 		if taskRun.ctxCancelFn != nil {
 			taskRun.ctxCancelFn()
 			taskRun.ctxCancelFn = nil
-			taskRun.lastOutput = ""
+			taskRun.logfile = ""
 			taskRun.EndTime = time.Time{}
 			taskRun.Status = RunFailure
 		} else {
@@ -918,8 +955,15 @@ func httpLastOutput(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQuery
 		http.Error(w, "Task not found", http.StatusNotFound)
 		return
 	}
+	var output string
+	output, err = readTaskOutput(t)
+	if err != nil {
+		errorLog.Printf("Failed to read task run log: %v", err)
+		http.Error(w, "Failed to read task run log", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(t.lastOutput))
+	w.Write([]byte(output))
 }
 
 func httpParseJobRunTask(r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
