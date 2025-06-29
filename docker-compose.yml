@@ -12,8 +12,10 @@ services:
       #- ./examples:/app/jobs
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
+      - /tmp/repeater:/tmp/repeater
     environment:
       REPEATER_JOBS_DIRECTORY: /app/examples
+      REPEATER_LOGS_DIRECTORY: /tmp/repeater
       #REPEATER_PASSWORD: "qwerty"
 
   clickhouse:

@@ -35,6 +35,7 @@ REPEATER_PORT=":8080"                          # web server port
 REPEATER_PASSWORD=""                           # web auth password
 REPEATER_JOBS_DIRECTORY="./examples/"          # jobs directory
 REPEATER_NOTIFY="python3 ./examples/notify.py" # task failure notification script
+REPEATER_LOGS_DIRECTORY="/tmp/repeater/"       # tasks output directory
 ```
 
 Job file example
