@@ -1,4 +1,4 @@
-title = "email_on_failure"
+title = "test_email_on_failure"
 retries = 1
 emails = ["yourmail@example.com"]
 

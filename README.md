@@ -4,7 +4,7 @@ A task scheduler for data analytics inspired by [Apache Airflow](https://airflow
 
 <p align="center">
     <a href="https://github.com/andrewbrdk/Repeater">
-    <img src="https://i.ibb.co/T8XDLsP/repeater-01.png" alt="repeater-01" width="600">
+    <img src="https://i.ibb.co/v65M3rY4/repeater24.png" alt="repeater" width="600">
     </a>
 </p>
 
@@ -38,7 +38,7 @@ REPEATER_NOTIFY="python3 ./examples/notify.py" # task failure notification scrip
 REPEATER_LOGS_DIRECTORY="/tmp/repeater/"       # tasks output directory
 ```
 
-Job file example
+Job example
 ```
 title = "example"
 cron = "*/15 * * * * *"            # cron schedule with seconds, optional
