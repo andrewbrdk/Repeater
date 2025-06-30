@@ -1,0 +1,6 @@
+title = "clear_logs"
+cron = "0 0 10 * * 0"
+
+[[tasks]]
+name = "clear_logs"
+cmd = "python3 ./examples/clear_logs.py --logs_dir=${REPEATER_LOGS_DIRECTORY:-/tmp/repeater} --keep_days=7"
