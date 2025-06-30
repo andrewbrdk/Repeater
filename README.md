@@ -3,9 +3,7 @@
 A task scheduler for data analytics inspired by [Apache Airflow](https://airflow.apache.org/).
 
 <div align="center">
-  <a href="https://github.com/andrewbrdk/Repeater">
-    <img src="https://i.ibb.co/v65M3rY4/repeater24.png" alt="repeater" width="600" style="height:auto; max-height:100%; object-fit:contain;">
-  </a>
+    <img src="https://i.ibb.co/v65M3rY4/repeater24.png" alt="repeater" width="700">
 </div>
 
 The service should start at [http://localhost:8080](http://localhost:8080) after the following commands:
