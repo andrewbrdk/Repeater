@@ -67,6 +67,7 @@ type Task struct {
 }
 
 type TaskRun struct {
+	Idx               int
 	Name              string
 	cmd               string
 	RenderedCmd       string
@@ -97,7 +98,10 @@ type Job struct {
 	Title          string `toml:"title"`
 	Cron           string `toml:"cron"`
 	HCron          string
-	Tasks          []*Task `toml:"tasks"`
+	Tasks          []*Task    `toml:"tasks"`
+	Order          [][]string `toml:"order"`
+	OrderProvided  bool       `toml:"-"`
+	taskMap        map[string]*Task
 	cronID         cron.EntryID
 	RunHistory     []*JobRun
 	OnOff          bool
@@ -307,6 +311,7 @@ func processJobFile(filePath string) (*Job, error) {
 			return nil, nil
 		}
 	}
+	//todo: check for duplicate task names
 	if jb.Retries < 0 {
 		errorLog.Printf("Job '%s' has negative retries (%d), setting to 0", jb.Title, jb.Retries)
 		webLog.Printf("Job '%s' has negative retries (%d), setting to 0", jb.Title, jb.Retries)
@@ -329,6 +334,28 @@ func processJobFile(filePath string) (*Job, error) {
 			errorLog.Printf("Task '%s' in job '%s' has negative timeout (%d), setting to 0", t.Name, jb.Title, t.TimeoutSec)
 			webLog.Printf("Task '%s' in job '%s' has negative timeout (%d), setting to 0", t.Name, jb.Title, t.TimeoutSec)
 			t.TimeoutSec = 0
+		}
+	}
+	jb.taskMap = make(map[string]*Task)
+	for _, t := range jb.Tasks {
+		jb.taskMap[t.Name] = t
+	}
+	if len(jb.Order) == 0 {
+		jb.OrderProvided = false
+		jb.Order = make([][]string, 0, len(jb.Tasks))
+		for _, t := range jb.Tasks {
+			jb.Order = append(jb.Order, []string{t.Name})
+		}
+	} else {
+		jb.OrderProvided = true
+	}
+	for _, order := range jb.Order {
+		for _, taskName := range order {
+			if _, ok := jb.taskMap[taskName]; !ok {
+				errorLog.Printf("%s: Task '%s' in Order is not defined. Skipping job altogether.\n", filePath, taskName)
+				webLog.Printf("%s: Task '%s' in Order is not defined. Skipping job altogether. \n", filePath, taskName)
+				return nil, errors.New("task in Order not defined")
+			}
 		}
 	}
 	//todo: move parser spec into JobsAndCron
@@ -388,33 +415,39 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 		ScheduledTime: scheduled_time,
 		StartTime:     time.Now(),
 	}
-	for _, t := range jb.Tasks {
-		emails := t.Emails
-		if len(emails) == 0 {
-			emails = jb.Emails
+	idx := 0
+	for _, taskGr := range jb.Order {
+		for _, taskName := range taskGr {
+			t, _ := jb.taskMap[taskName]
+			emails := t.Emails
+			if len(emails) == 0 {
+				emails = jb.Emails
+			}
+			retries := t.Retries
+			if retries == 0 {
+				retries = jb.Retries
+			}
+			timeout := t.TimeoutSec
+			if timeout == 0 {
+				timeout = jb.TaskTimeoutSec
+			}
+			run.TasksHistory = append(run.TasksHistory, &TaskRun{
+				Name:    t.Name,
+				Idx:     idx,
+				cmd:     t.Cmd,
+				Status:  NoRun,
+				Attempt: 0,
+				cmdTemplateParams: map[string]string{
+					"title":        jb.Title,
+					"scheduled_dt": run.ScheduledTime.Format("2006-01-02"),
+				},
+				retries: retries,
+				timeout: timeout,
+				emails:  emails,
+				logfile: "",
+			})
+			idx += 1
 		}
-		retries := t.Retries
-		if retries == 0 {
-			retries = jb.Retries
-		}
-		timeout := t.TimeoutSec
-		if timeout == 0 {
-			timeout = jb.TaskTimeoutSec
-		}
-		run.TasksHistory = append(run.TasksHistory, &TaskRun{
-			Name:    t.Name,
-			cmd:     t.Cmd,
-			Status:  NoRun,
-			Attempt: 0,
-			cmdTemplateParams: map[string]string{
-				"title":        jb.Title,
-				"scheduled_dt": run.ScheduledTime.Format("2006-01-02"),
-			},
-			retries: retries,
-			timeout: timeout,
-			emails:  emails,
-			logfile: "",
-		})
 	}
 	jb.RunHistory = append(jb.RunHistory, run)
 	return run
@@ -422,7 +455,6 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 
 func runJob(run *JobRun, jb *Job) error {
 	//todo: check race conditions
-	var err error
 	ctx, cancel := context.WithCancel(context.Background())
 	run.ctxCancelFn = cancel
 	defer func() {
@@ -435,18 +467,38 @@ func runJob(run *JobRun, jb *Job) error {
 	infoLog.Printf("Running '%s'", jb.Title)
 	broadcastSSEUpdate(fmt.Sprintf(`{"event": "job_running", "name": "%s"}`, jb.Title))
 	var jobFail bool
-	for _, tr := range run.TasksHistory {
-		for attempt := 1; attempt <= tr.retries+1; attempt++ {
-			infoLog.Printf("Running task '%s' (attempt %d/%d)", tr.Name, attempt, tr.retries+1)
-			err = runTask(ctx, tr)
-			if err == nil {
-				break
-			}
-			errorLog.Printf("Task '%s' failed (attempt %d/%d)", tr.Name, attempt, tr.retries+1)
-			if attempt > tr.retries {
-				jobFail = true
-				break
-			}
+	idx := 0
+	for _, parallelGroup := range jb.Order {
+		var wg sync.WaitGroup
+		errCh := make(chan error, len(parallelGroup))
+		for range parallelGroup {
+			tr := run.TasksHistory[idx]
+			wg.Add(1)
+			go func(tr *TaskRun) {
+				defer wg.Done()
+				var lastErr error
+				for attempt := 1; attempt <= tr.retries+1; attempt++ {
+					infoLog.Printf("Running task '%s' (attempt %d/%d)", tr.Name, attempt, tr.retries+1)
+					lastErr = runTask(ctx, tr)
+					if lastErr == nil {
+						break
+					}
+					errorLog.Printf("Task '%s' failed (attempt %d/%d)", tr.Name, attempt, tr.retries+1)
+					if attempt > tr.retries {
+						break
+					}
+				}
+				if lastErr != nil {
+					errCh <- lastErr
+				}
+			}(tr)
+			idx += 1
+		}
+		wg.Wait()
+		close(errCh)
+		if len(errCh) > 0 {
+			jobFail = true
+			break
 		}
 		if jobFail {
 			break

@@ -268,26 +268,30 @@
 		function jobTableTasksHTML(job, jobIndex) {
 			let visibility = job.displaystate['visibility'] ? 'visible' : 'collapse';
 			let html = ''
-			job.Tasks.forEach((task, taskIndex) => {
-            	html += `
-					<tr class="hist${jobIndex}" style="visibility: ${visibility};">
-           	 		<td class="collapse_btn"> </td>
-					<td class="task_names">${task.Name}</td>`;
-        		job.RunHistory.forEach((run, runIndex) => {
-					let selected = (job.displaystate['visibility'] && job.displaystate['selected_run'] == runIndex && job.displaystate['selected_task'] == taskIndex) ? 'selected' : '';
-        	    	html += `
-						<td id="job${jobIndex}run${runIndex}task${taskIndex}" class="states ${selected}">
-						<a href="/#job${jobIndex}run${runIndex}task${taskIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, ${taskIndex});return false;">${getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
-						</td>`;
-    			});
-			    html += `
-					<td class="states"> </td>
-					<td class="fill"> </td>
-		    		<td class="schedule"> </td>
-		    		<td class="runnow_btn"> </td>
-		    		<td class="onoff_btn"> </td>
-					</tr>`;
-			});
+			let taskIndex = 0;
+			job.Order.forEach((group, groupIdx) => {
+        		group.forEach((taskName) => {
+					let offset = job.OrderProvided ? '&nbsp;&nbsp;'.repeat(groupIdx) : '';
+					html += `
+						<tr class="hist${jobIndex}" style="visibility: ${visibility};">
+						<td class="collapse_btn"> </td>
+						<td class="task_names">${offset + taskName}</td>`;
+					job.RunHistory.forEach((run, runIndex) => {
+						let selected = (job.displaystate['visibility'] && job.displaystate['selected_run'] == runIndex && job.displaystate['selected_task'] == taskIndex) ? 'selected' : '';
+						html += `
+							<td id="job${jobIndex}run${runIndex}task${taskIndex}" class="states ${selected}">
+							<a href="/#job${jobIndex}run${runIndex}task${taskIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, ${taskIndex});return false;">${getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
+							</td>`;
+					});
+					html += `
+						<td class="states"> </td>
+						<td class="fill"> </td>
+						<td class="schedule"> </td>
+						<td class="runnow_btn"> </td>
+						<td class="onoff_btn"> </td>
+						</tr>`;
+					taskIndex++;
+			})});
 			return html;
 		}
 		async function jobRunInfoHTML(job, jobIndex) {

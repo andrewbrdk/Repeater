@@ -1,0 +1,11 @@
+title = "test_order"
+order = [
+    ["wait_5s"],
+    ["wait_5s", "wait_10s"],
+    ["wait_5s", "wait_10s", "wait_15s"]
+]
+tasks = [
+    {name = "wait_5s", cmd = "sleep 5 && echo 'done'"},
+    {name = "wait_10s", cmd = "sleep 10 && echo 'done'"},
+    {name = "wait_15s", cmd = "sleep 15 && echo 'done'"}
+]
