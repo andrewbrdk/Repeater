@@ -39,10 +39,18 @@ REPEATER_LOGS_DIRECTORY="/tmp/repeater/"       # tasks output directory
 Job example
 ```
 title = "example"
-cron = "*/15 * * * * *"            # cron schedule with seconds, optional
+cron = "*/10 * * * * *"            # cron schedule with seconds, optional
 retries = 1                        # task retries, optional
-task_timeout = 5                   # execution timeout, seconds, optional
+task_timeout = 15                  # execution timeout, seconds, optional
 emails = ["yourmail@example.com"]  # email on failure, optional
+
+# Tasks execution order, optional.
+# Tasks in inner lists are executed in parallel, outer list order is sequential.
+# If 'order' is not specified, tasks run sequentially as defined.
+order = [                          
+    ["hello_world", "wait_5s"],
+    ["echo_args", "wait_10s"]
+]                                  
 
 [[tasks]]
 name = "hello_world"
@@ -52,8 +60,16 @@ retries = 2                        # overrides job-level retries
 emails = ["taskmail@example.com"]  # overrides job-level emails
 
 [[tasks]]
+name = "wait_5s" 
+cmd = "sleep 5 && echo 'done'"
+
+[[tasks]]
 name = "echo_args" 
 cmd = "echo \"{{.title}}\" {{.scheduled_dt}}"
+
+[[tasks]]
+name = "wait_10s" 
+cmd = "sleep 10 && echo 'done'"
 
 #cmd templated args:
 #{{.title}} - job title
