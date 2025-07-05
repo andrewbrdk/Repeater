@@ -264,7 +264,7 @@ func removeJobsWithoutFiles(files map[string][16]byte, JC *JobsAndCron) {
 		last_idx := len(JC.Jobs) - 1
 		for _, jb_idx := range toremove {
 			JC.cron.Remove(JC.Jobs[jb_idx].cronID)
-			//todo: terminate running commands before removing
+			cancelActiveJobRuns(JC.Jobs[jb_idx])
 			JC.Jobs[jb_idx] = JC.Jobs[last_idx]
 			last_idx = last_idx - 1
 		}
@@ -725,6 +725,16 @@ func cancelTaskRun(taskRun *TaskRun, jobRun *JobRun) {
 	}
 	updateJobRunStatusFromTasks(jobRun)
 	broadcastSSEUpdate(fmt.Sprintf(`{"event": "task_cancel", "name": "%s"}`, taskRun.Name))
+}
+
+func cancelActiveJobRuns(jb *Job) {
+	jb.OnOff = false
+	for _, run := range jb.RunHistory {
+		if run.Status == Running {
+			cancelJobRun(jb, run)
+		}
+	}
+	jb.NextScheduled = time.Time{}
 }
 
 func updateJobRunStatusFromTasks(jobRun *JobRun) {

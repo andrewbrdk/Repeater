@@ -44,9 +44,11 @@ retries = 1                        # task retries, optional
 task_timeout = 15                  # execution timeout, seconds, optional
 emails = ["yourmail@example.com"]  # email on failure, optional
 
-# Tasks execution order, optional.
-# Tasks in inner lists are executed in parallel, outer list order is sequential.
-# If 'order' is not specified, tasks run sequentially as defined.
+# Task execution order, optional.
+# List of lists of task names. 
+# Tasks in inner lists run in parallel. 
+# Outer list order is sequential.
+# If 'order' is not specified, tasks run sequentially as defined in [[tasks]].
 order = [                          
     ["hello_world", "wait_5s"],
     ["echo_args", "wait_10s"]
