@@ -482,6 +482,9 @@ func runJob(run *JobRun, jb *Job) error {
 					lastErr = runTask(ctx, tr)
 					if lastErr == nil {
 						break
+					} else if lastErr == context.Canceled {
+						infoLog.Printf("Task '%s' cancelled", tr.Name)
+						break
 					}
 					errorLog.Printf("Task '%s' failed (attempt %d/%d)", tr.Name, attempt, tr.retries+1)
 					if attempt > tr.retries {
@@ -498,9 +501,6 @@ func runJob(run *JobRun, jb *Job) error {
 		close(errCh)
 		if len(errCh) > 0 {
 			jobFail = true
-			break
-		}
-		if jobFail {
 			break
 		}
 	}
