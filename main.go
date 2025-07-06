@@ -606,7 +606,7 @@ func saveOutputOnDisk(output string, tr *TaskRun) {
 	}
 	tr.logfile = fmt.Sprintf("%s_%s_%s.log",
 		tr.StartTime.Format("20060102T150405"),
-		escapeName(tr.cmdTemplateParams["title"]),
+		escapeName(tr.cmdTemplateParams["title"]), // todo: use job.Title
 		escapeName(tr.Name),
 	)
 	filename := filepath.Join(CONF.logsDir, tr.logfile)
@@ -940,11 +940,10 @@ func httpRestart(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryPar
 		t = rn.TasksHistory[httpQPars.taskIndex]
 	}
 	if rn != nil && t != nil {
-		//todo: handle mutex and cancellation
+		//todo: check concurrency issues
 		go restartTaskRun(t, rn)
 	} else if rn != nil {
-		//go restartJobRun?
-		restartJobRun(jb, rn)
+		go restartJobRun(jb, rn)
 	} else {
 		http.Error(w, "JobRun or TaskRun not found", http.StatusNotFound)
 		return
@@ -977,11 +976,10 @@ func httpCancel(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryPara
 		t = rn.TasksHistory[httpQPars.taskIndex]
 	}
 	if rn != nil && t != nil {
-		//todo: handle mutex and cancellation
+		//todo: check concurrency issues
 		go cancelTaskRun(t, rn)
 	} else if rn != nil {
-		//go restartJobRun?
-		cancelJobRun(jb, rn)
+		go cancelJobRun(jb, rn)
 	} else {
 		http.Error(w, "JobRun or TaskRun not found", http.StatusNotFound)
 		return
