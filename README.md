@@ -37,7 +37,7 @@ REPEATER_LOGS_DIRECTORY="/tmp/repeater/"       # tasks output directory
 ```
 
 Job example
-```
+```toml
 title = "example"
 cron = "*/10 * * * * *"            # cron schedule with seconds, optional
 retries = 1                        # task retries, optional
