@@ -304,14 +304,21 @@ func processJobFile(filePath string) (*Job, error) {
 		webLog.Printf("%s: no tasks. Skipping. \n", filePath)
 		return nil, nil
 	}
+	taskNames := make(map[string]bool)
 	for _, t := range jb.Tasks {
 		if len(t.Name) == 0 || len(t.Cmd) == 0 {
 			errorLog.Printf("%s: Task name or cmd is empty. Skipping job altogether.\n", filePath)
 			webLog.Printf("%s: Task name or cmd is empty. Skipping job altogether. \n", filePath)
 			return nil, nil
 		}
+		if taskNames[t.Name] {
+			errorLog.Printf("%s: Duplicate task name '%s'. Skipping job altogether.\n", filePath, t.Name)
+			webLog.Printf("%s: Duplicate task name '%s'. Skipping job altogether.\n", filePath, t.Name)
+			return nil, fmt.Errorf("duplicate task name '%s'", t.Name)
+		} else {
+			taskNames[t.Name] = true
+		}
 	}
-	//todo: check for duplicate task names
 	if jb.Retries < 0 {
 		errorLog.Printf("Job '%s' has negative retries (%d), setting to 0", jb.Title, jb.Retries)
 		webLog.Printf("Job '%s' has negative retries (%d), setting to 0", jb.Title, jb.Retries)

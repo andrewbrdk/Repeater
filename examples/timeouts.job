@@ -2,5 +2,5 @@ title = "timeouts"
 task_timeout = 5
 tasks = [
     {name = "wait_10s", cmd = "sleep 10 && echo 'done'", timeout = 15},
-    {name = "wait_10s", cmd = "sleep 10 && echo 'done'"}
+    {name = "wait_15s", cmd = "sleep 15 && echo 'done'"}
 ]
