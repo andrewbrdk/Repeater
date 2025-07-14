@@ -9,6 +9,13 @@
 			margin-left: 10%;
 			margin-right: 10%;
 		}
+		x-repeater, x-login, x-parsing-errors, #alljobs {
+			display: block;
+			margin: 0 auto;
+		}
+		x-login[hidden], x-parsing-errors[hidden], #alljobs[hidden] {
+			display: none;
+		}
 		h1 {
 			text-align: center;
 		}
@@ -132,286 +139,365 @@
 	</style>
 </head>
 <body>
-    <h1><a href="/">Repeater</a></h1>
-    <div id="login" style="display: none;">
-    <form onsubmit="submitLogin(); return false;">
-        <label for="password">Password:</label>
-        <input type="password" id="password" name="password" required>
-        <button type="button" onclick="submitLogin();">Login</button>
-        <br/>
-        <div id="invalidpassword" style="display: none;">Invalid Password</div>
-    </form>
-    </div>
-    <div id="parsingerrors" style="display: none;">
-		<h4>Jobs Parsing Errors:</h4>
-		<pre id="parsingerrors_pre"></pre>
-    </div>
-    <div id="alljobs">
-    </div>
-	<script>
-		async function renderPage() {
-			//todo: rearrange
-			let res = await fetch('/jobs', {credentials: 'include'});
-			const statusCode = res.status;
-			if (statusCode == 200) { // ok
-				document.getElementById("login").style.display = "none";
-				document.getElementById("alljobs").style.display = "block";
-				let d = await res.json();
-				renderAllJobs(d);
-				renderParsingErrors();
-				setupEventSource();
-			} else if (statusCode == 401) { // unauthorized
-				document.getElementById("login").style.display = "block";
-				document.getElementById("alljobs").style.display = "none";
-				document.getElementById("parsingerrors").style.display = "none";
-				closeEventSource();
-			} else { // other
-				document.getElementById("login").style.display = "block";
-				document.getElementById("alljobs").style.display = "none";
-				document.getElementById("parsingerrors").style.display = "none";
-				alert("internal error");
-				closeEventSource();
-			}
-		}
-		async function submitLogin() {
-            const password = document.getElementById('password').value;
-            const response = await fetch('/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ password }),
-            });
-            if (response.ok) {
-				document.getElementById("invalidpassword").style.display = "none";
-                renderPage();
-            } else {
-                document.getElementById("invalidpassword").style.display = "inline";
-            }
-		}
-		async function renderAllJobs(jobs_data) {
-			updateJOBS(jobs_data);
-			let divs = [];
-			for await (const [jobIndex, job] of JOBS['Jobs'].entries()) {
-				divs.push(await jobDiv(job, jobIndex));
-			}
-			const alljobs = document.getElementById('alljobs');
-            alljobs.replaceChildren(...divs);
-			divs.forEach((d, _) => {
-				d.scrollLeft = d.scrollWidth;
-			});
-        }
-		function updateJOBS(data) {
-			JOBS.Jobs = JOBS.Jobs || []
-			data.Jobs.forEach((job, jobIndex) => {
-				let d;
-				if (JOBS.Jobs[jobIndex] !== undefined && JOBS.Jobs[jobIndex].displaystate !== undefined) {
-					d = JOBS.Jobs[jobIndex].displaystate;
-				} else {
-					// todo: define constructor?
-					d = {'visibility': false, 'selected_run': null, 'selected_task': null};
-				}
-				JOBS.Jobs[jobIndex] = job;
-				// todo: match by job id 
-				JOBS.Jobs[jobIndex].displaystate = d;
-            });
-			JOBS.Jobs = JOBS.Jobs.slice(0, data.Jobs.length);
-		}
-		async function jobDiv(job, jobIndex) {
-			const jobDiv = document.createElement('div');
-            jobDiv.classList.add('job');
-			jobDiv.id = `job${jobIndex}`;
-			jobDiv.innerHTML = await jobHTML(job, jobIndex);
-			return jobDiv;
-		}
-		async function jobHTML(job, jobIndex) {
-    		let html = `<table>`;
-			html += jobTableHeaderHTML(job, jobIndex);
-			html += jobTableTasksHTML(job, jobIndex);
-			html += `</table>`;
-			html += await jobRunInfoHTML(job, jobIndex);
-			return html;
-		}
-		function jobTableHeaderHTML(job, jobIndex) {
-			let showhidebtn_text = job.displaystate['visibility'] ? '-' : '+';
-			let html = `
-				<tr>
-				<th class="collapse_btn"><button id="showhidebtn${jobIndex}" onclick="showHide(${jobIndex})">${showhidebtn_text}</button></th>
-    			<th class="task_names"><strong>${job.Title}</strong></th>`;
-        	job.RunHistory.forEach((run, runIndex) => {
-				let selected = (job.displaystate['visibility'] && job.displaystate['selected_run'] == runIndex && job.displaystate['selected_task'] === null) ? 'selected' : '';
-				let tooltip = `Scheduled: ${formatDateTime(new Date(run.ScheduledTime))}`
-				html += `
-					<th id="job${jobIndex}run${runIndex}" class="states ${selected}">
-					<a href="/#job${jobIndex}run${runIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, null);return false;" tooltip="${tooltip}">${getHTMLStatus(run.Status)}</a>
-					</th>`;
-    		});
-    		let next_scheduled = `<span> </span>`;
-    		if (job.OnOff) {
-				tooltip = job.NextScheduled != "0001-01-01T00:00:00Z" ? `Scheduled: ${formatDateTime(new Date(job.NextScheduled))}` : '--';
-				next_scheduled = `<span tooltip="${tooltip}">□</span>`;
-			}
-			html += `
-				<th class="states">${next_scheduled}</th>
-				<th class="fill"> </th>
-				<th class="schedule">${job.HCron}</th>
-				<th class="runnow_btn"><button onclick="runNow(${jobIndex})">Run Now</button></th>`;
-			let onoff_btn_html = ""
-			if (job.Cron != "") {
-				onoff_btn_html = `<button onclick="onOff(${jobIndex})">${job.OnOff ? 'Turn Off' : 'Turn On'}</button>`;
-			}
-			html += `
-				<th class="onoff_btn">${onoff_btn_html}</th>
-				</tr>
-			`;
-			return html;
-		}
-		function jobTableTasksHTML(job, jobIndex) {
-			let visibility = job.displaystate['visibility'] ? 'visible' : 'collapse';
-			let html = ''
-			let taskIndex = 0;
-			job.Order.forEach((group, groupIdx) => {
-        		group.forEach((taskName) => {
-					let offset = job.OrderProvided ? '&nbsp;&nbsp;'.repeat(groupIdx) : '';
-					html += `
-						<tr class="hist${jobIndex}" style="visibility: ${visibility};">
-						<td class="collapse_btn"> </td>
-						<td class="task_names">${offset + taskName}</td>`;
-					job.RunHistory.forEach((run, runIndex) => {
-						let selected = (job.displaystate['visibility'] && job.displaystate['selected_run'] == runIndex && job.displaystate['selected_task'] == taskIndex) ? 'selected' : '';
-						html += `
-							<td id="job${jobIndex}run${runIndex}task${taskIndex}" class="states ${selected}">
-							<a href="/#job${jobIndex}run${runIndex}task${taskIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, ${taskIndex});return false;">${getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
-							</td>`;
-					});
-					html += `
-						<td class="states"> </td>
-						<td class="fill"> </td>
-						<td class="schedule"> </td>
-						<td class="runnow_btn"> </td>
-						<td class="onoff_btn"> </td>
-						</tr>`;
-					taskIndex++;
-			})});
-			return html;
-		}
-		async function jobRunInfoHTML(job, jobIndex) {
-			let v = job.displaystate['visibility'];
-			let sr = job.displaystate['selected_run'];
-			let r = job.RunHistory[sr];
-			let display_style = v && r ? 'block' : 'none';
-			const r_sch = r ? formatDateTime(new Date(r['ScheduledTime'])) : '';
-			let html = `
-				<p style="display: ${display_style};">
-				Job scheduled: ${r_sch}
-				<button onclick="restartSelected(${jobIndex}, ${sr}, null)">Restart job</button>
-				<button onclick="cancelSelected(${jobIndex}, ${sr}, null)">Cancel job</button>
-				</p>`;
-			let st = job.displaystate['selected_task'];
-			let t = r ? r.TasksHistory[st] : null;
-			display_style = v && r && t ? 'block' : 'none';
-			const t_st = t && t['StartTime'] != "0001-01-01T00:00:00Z" ? formatDateTime(new Date(t['StartTime'])) : '-';
-			const t_cmd = t ? t.RenderedCmd : '';
-			let last_output = ''
-			if (v && r && t) {
-				last_output = await getTaskLastOutput(jobIndex, sr, st);
-			}
-			html += `
-				<p style="display: ${display_style};">
-				Task started: ${t_st}
-				<button onclick="restartSelected(${jobIndex}, ${sr}, ${st})">Restart task</button>
-				<button onclick="cancelSelected(${jobIndex}, ${sr}, ${st})">Cancel task</button>
- 				</p>
-				<pre class="taskruninfo" style="display: ${display_style};"><code>> ${t_cmd} </code>\n<samp> ${last_output} </samp>
- 				</pre>`;
-			return html;
-		}
-		function getHTMLStatus(runStatus) {
-			// "&#9632;", "&Cross;", "&#9704;" "&#9633;"
-			const statusSymbols = ['■', '⨯', '◨', '□'];
-			return statusSymbols[runStatus] || '?';
-		}
-		async function selectRun(jobIndex, runIndex, taskIndex) {
-			JOBS.Jobs[jobIndex].displaystate.visibility = true;
-			JOBS.Jobs[jobIndex].displaystate.selected_run = runIndex;
-			JOBS.Jobs[jobIndex].displaystate.selected_task = taskIndex;
-			var e = document.getElementById(`job${jobIndex}`);
-			let div = await jobDiv(JOBS.Jobs[jobIndex], jobIndex);
-			let s = e.scrollLeft;
-			e.parentNode.replaceChild(div, e);
-			div.scrollLeft = s;
-		}
-		async function onOff(job) {
-			let res = await fetch(`/onoff?job=${job}`);
-			await renderPage();
-		}
-		async function runNow(job) {
-			let res = await fetch(`/runnow?job=${job}`);
-			await renderPage();
-		}
-		async function restartSelected(job, run, task) {
-			let res = await fetch(`/restart?job=${job}&run=${run}&task=${task}`);
-			await renderPage();
-		}
-		async function cancelSelected(job, run, task) {
-			let res = await fetch(`/cancel?job=${job}&run=${run}&task=${task}`);
-			await renderPage();
-		}
-		async function getTaskLastOutput(job, run, task) {
-			let res = await fetch(`/lastoutput?job=${job}&run=${run}&task=${task}`);
-			let t = await res.text();
-			return t;
-		}
-		async function renderParsingErrors() {
-			let res = await fetch(`/parsingerrors`);
-			let e = await res.text();
-			if (e) {
-				document.getElementById("parsingerrors_pre").textContent = e;
-				document.getElementById("parsingerrors").style.display = "block";
-			}
-		}
-		async function showHide(jobIndex) {
-			JOBS.Jobs[jobIndex].displaystate.visibility = !JOBS.Jobs[jobIndex].displaystate.visibility;
-			var e = document.getElementById(`job${jobIndex}`);
-			let div = await jobDiv(JOBS.Jobs[jobIndex], jobIndex);
-			let s = e.scrollLeft;
-			e.parentNode.replaceChild(div, e);
-			div.scrollLeft = s;
-		}
-		function formatDateTime(d) {
-			return (
-				d.getDate().toString().padStart(2, '0') + "-" +
-				(d.getMonth()+1).toString().padStart(2, '0') + "-" +
-    			d.getFullYear() + " " + 
-				d.getHours().toString().padStart(2, '0') + ":" + 
-				d.getMinutes().toString().padStart(2, '0') + ":" +
-				d.getSeconds().toString().padStart(2, '0')
-			);
-		}
-		function setupEventSource() {
-			if (!EVTSOURCE || EVTSOURCE.readyState === EventSource.CLOSED) {
-				EVTSOURCE = new EventSource("/events");
-				EVTSOURCE.onmessage = function (e) {
-					renderPage();
-					//todo: don't redraw the page on every event
-					//console.log("EventSource message:", e.data);
-					//const update = JSON.parse(e.data);
-					//console.log("Update:", update);
-				};
-				EVTSOURCE.onerror = function () {
-					console.error("EventSource connection error.");
-				};
-			}
-		}
-		function closeEventSource() {
-			if (EVTSOURCE) {
-				EVTSOURCE.close();
-				EVTSOURCE = null;
-			}
-		}
+	
+<x-repeater></x-repeater>
 
-		let JOBS = {};
-		let EVTSOURCE = null;
-        renderPage();
-	</script>
+<script>
+class XRepeater extends HTMLElement {
+	#jobsData = {};
+	#evSrc = null;
+	
+	#login = null;
+	#parsingErrors = null;
+	#allJobs = null;
+
+	connectedCallback() {
+		this.innerHTML = `
+			<h1><a href="/">Repeater</a></h1>
+			<x-login></x-login>
+			<x-parsing-errors></x-parsing-errors>
+			<div id="alljobs"></div>
+		`;
+		this.#login = this.querySelector('x-login');
+		this.#parsingErrors = this.querySelector('x-parsing-errors');
+		this.#allJobs = this.querySelector('#alljobs');
+		this.addEventListener('job-change', (e) => {
+			this.renderPage();
+		});
+		this.renderPage();
+	}
+
+	async renderPage() {
+		let res = await fetch('/jobs', {credentials: 'include'});
+		const statusCode = res.status;
+		if (statusCode == 200) { // ok
+			this.#login.hidden = true;
+			this.#allJobs.hidden = false;
+			let d = await res.json();
+			this.renderAllJobs(d);
+			this.#parsingErrors.renderParsingErrors();
+			this.setupEventSource();
+		} else if (statusCode == 401) { // unauthorized
+			this.#login.hidden = false;
+			this.#allJobs.hidden = true;
+			this.#parsingErrors.hidden = true;
+			this.closeEventSource();
+		} else { // other
+			this.#login.hidden = false;
+			this.#allJobs.hidden = true;
+			this.#parsingErrors.hidden = true;
+			alert("internal error");
+			this.closeEventSource();
+		}
+	}
+
+	async renderAllJobs(jobs_data) {
+		this.updateJOBS(jobs_data);
+		let jobs = [];
+		for await (const [jobIndex, job] of this.#jobsData['Jobs'].entries()) {
+			let j = document.createElement('x-job');
+			await j.init(job, jobIndex);
+			jobs.push(j);
+		}
+		this.#allJobs.replaceChildren(...jobs);
+		jobs.forEach((j, _) => {
+			j.scrollLeft = j.scrollWidth;
+		});
+	}
+
+	updateJOBS(data) {
+		this.#jobsData.Jobs = this.#jobsData.Jobs || []
+		// todo: match by job id, handle visibility in job components
+		data.Jobs.forEach((job, jobIndex) => {
+			let d;
+			if (this.#jobsData.Jobs[jobIndex] !== undefined && this.#jobsData.Jobs[jobIndex].displaystate !== undefined) {
+				d = this.#jobsData.Jobs[jobIndex].displaystate;
+			} else {
+				d = {'visibility': false, 'selected_run': null, 'selected_task': null};
+			}
+			this.#jobsData.Jobs[jobIndex] = job;
+			this.#jobsData.Jobs[jobIndex].displaystate = d;
+		});
+		this.#jobsData.Jobs = this.#jobsData.Jobs.slice(0, data.Jobs.length);
+	}
+
+	setupEventSource() {
+		if (!this.#evSrc || this.#evSrc.readyState === EventSource.CLOSED) {
+			this.#evSrc = new EventSource("/events");
+			this.#evSrc.onmessage = (e) => {
+				//todo: don't redraw the page on every event
+				this.renderPage();
+			};
+			this.#evSrc.onerror = () => {
+				console.error("EventSource connection error.");
+			};
+		}
+	}
+
+	closeEventSource() {
+		if (this.#evSrc) {
+			this.#evSrc.close();
+			this.#evSrc = null;
+		}
+	}
+}
+
+class XLogin extends HTMLElement {
+	connectedCallback() {
+		this.innerHTML = `
+			<div id="login">
+				<form onsubmit="submitLogin(); return false;">
+					<label for="password">Password:</label>
+					<input type="password" id="password" name="password" required>
+					<button type="button" onclick="submitLogin();">Login</button>
+					<br/>
+					<div id="invalidpassword" style="display: none;">Invalid Password</div>
+				</form>
+			</div>
+		`;
+	}
+
+	async submitLogin() {
+		const password = document.getElementById('password').value;
+		const response = await fetch('/login', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			credentials: 'include',
+			body: JSON.stringify({ password }),
+		});
+		if (response.ok) {
+			document.getElementById("invalidpassword").style.display = "none";
+			renderPage();
+		} else {
+			document.getElementById("invalidpassword").style.display = "inline";
+		}
+	}
+}
+
+class XParsingErrors extends HTMLElement {
+	connectedCallback() {
+	this.innerHTML = `
+		<div id="parsingerrors" style="display: none;">
+			<h4>Jobs Parsing Errors:</h4>
+			<pre id="parsingerrors_pre"></pre>
+		</div>
+	`;
+	}
+	async renderParsingErrors() {
+		let res = await fetch(`/parsingerrors`);
+		let e = await res.text();
+		if (e) {
+			document.getElementById("parsingerrors_pre").textContent = e;
+			document.getElementById("parsingerrors").style.display = "block";
+		}
+	}
+}
+
+
+class XJob extends HTMLElement {
+	job = null;
+	jobIndex = null;
+
+	connectedCallback() {
+		let btn = this.querySelector('button.collapse_btn');
+		if (btn) {
+			btn.addEventListener('click', () => this.showHide(this.jobIndex));
+		}
+		btn = this.querySelector('button.runnow_btn');
+		if (btn) {
+			btn.addEventListener('click', () => this.runNow(this.jobIndex));
+		}
+		btn = this.querySelector('button.onoff_btn');
+		if (btn) {
+			btn.addEventListener('click', () => this.onOff(this.jobIndex));
+		}
+	}
+
+	async init(job, jobIndex) {
+		this.job = job;
+		this.jobIndex = jobIndex;
+		this.innerHTML = `
+			<div class="job" id="job${this.jobIndex}">
+				${await this.jobHTML(this.job, this.jobIndex)}
+			</div>
+		`;	
+	}
+	
+	async jobHTML(job, jobIndex) {
+		let html = `<table>`;
+		html += this.jobTableHeaderHTML(job, jobIndex);
+		html += this.jobTableTasksHTML(job, jobIndex);
+		html += `</table>`;
+		html += await this.jobRunInfoHTML(job, jobIndex);
+		return html;
+	}
+
+	jobTableHeaderHTML(job, jobIndex) {
+		let showhidebtn_text = job.displaystate['visibility'] ? '-' : '+';
+		let tooltip = null;
+		let html = `
+			<tr>
+			<th class="collapse_btn"><button class="collapse_btn">${showhidebtn_text}</button></th>
+			<th class="task_names"><strong>${job.Title}</strong></th>`;
+		job.RunHistory.forEach((run, runIndex) => {
+			let selected = (job.displaystate['visibility'] && job.displaystate['selected_run'] == runIndex && job.displaystate['selected_task'] === null) ? 'selected' : '';
+			tooltip = `Scheduled: ${this.formatDateTime(new Date(run.ScheduledTime))}`
+			html += `
+				<th id="job${jobIndex}run${runIndex}" class="states ${selected}">
+				<a href="/#job${jobIndex}run${runIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, null);return false;" tooltip="${tooltip}">${this.getHTMLStatus(run.Status)}</a>
+				</th>`;
+		});
+		let next_scheduled = `<span> </span>`;
+		if (job.OnOff) {
+			tooltip = job.NextScheduled != "0001-01-01T00:00:00Z" ? `Scheduled: ${this.formatDateTime(new Date(job.NextScheduled))}` : '--';
+			next_scheduled = `<span tooltip="${tooltip}">□</span>`;
+		}
+		html += `
+			<th class="states">${next_scheduled}</th>
+			<th class="fill"> </th>
+			<th class="schedule">${job.HCron}</th>
+			<th class="runnow_btn"><button class="runnow_btn">Run Now</button></th>`;
+		let onoff_btn_html = ""
+		if (job.Cron != "") {
+			onoff_btn_html = `<button class="onoff_btn">${job.OnOff ? 'Turn Off' : 'Turn On'}</button>`;
+		}
+		html += `
+			<th class="onoff_btn">${onoff_btn_html}</th>
+			</tr>
+		`;
+		return html;
+	}
+
+	jobTableTasksHTML(job, jobIndex) {
+		let visibility = job.displaystate['visibility'] ? 'visible' : 'collapse';
+		let html = ''
+		let taskIndex = 0;
+		job.Order.forEach((group, groupIdx) => {
+			group.forEach((taskName) => {
+				let offset = job.OrderProvided ? '&nbsp;&nbsp;'.repeat(groupIdx) : '';
+				html += `
+					<tr class="hist${jobIndex}" style="visibility: ${visibility};">
+					<td class="collapse_btn"> </td>
+					<td class="task_names">${offset + taskName}</td>`;
+				job.RunHistory.forEach((run, runIndex) => {
+					let selected = (job.displaystate['visibility'] && job.displaystate['selected_run'] == runIndex && job.displaystate['selected_task'] == taskIndex) ? 'selected' : '';
+					html += `
+						<td id="job${jobIndex}run${runIndex}task${taskIndex}" class="states ${selected}">
+						<a href="/#job${jobIndex}run${runIndex}task${taskIndex}" onclick="selectRun(${jobIndex}, ${runIndex}, ${taskIndex});return false;">${this.getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
+						</td>`;
+				});
+				html += `
+					<td class="states"> </td>
+					<td class="fill"> </td>
+					<td class="schedule"> </td>
+					<td class="runnow_btn"> </td>
+					<td class="onoff_btn"> </td>
+					</tr>`;
+				taskIndex++;
+		})});
+		return html;
+	}
+
+	async jobRunInfoHTML(job, jobIndex) {
+		let v = job.displaystate['visibility'];
+		let sr = job.displaystate['selected_run'];
+		let r = job.RunHistory[sr];
+		let display_style = v && r ? 'block' : 'none';
+		const r_sch = r ? this.formatDateTime(new Date(r['ScheduledTime'])) : '';
+		let html = `
+			<p style="display: ${display_style};">
+			Job scheduled: ${r_sch}
+			<button onclick="restartSelected(${jobIndex}, ${sr}, null)">Restart job</button>
+			<button onclick="cancelSelected(${jobIndex}, ${sr}, null)">Cancel job</button>
+			</p>`;
+		let st = job.displaystate['selected_task'];
+		let t = r ? r.TasksHistory[st] : null;
+		display_style = v && r && t ? 'block' : 'none';
+		const t_st = t && t['StartTime'] != "0001-01-01T00:00:00Z" ? this.formatDateTime(new Date(t['StartTime'])) : '-';
+		const t_cmd = t ? t.RenderedCmd : '';
+		let last_output = ''
+		if (v && r && t) {
+			last_output = await this.getTaskLastOutput(jobIndex, sr, st);
+		}
+		html += `
+			<p style="display: ${display_style};">
+			Task started: ${t_st}
+			<button onclick="restartSelected(${jobIndex}, ${sr}, ${st})">Restart task</button>
+			<button onclick="cancelSelected(${jobIndex}, ${sr}, ${st})">Cancel task</button>
+			</p>
+			<pre class="taskruninfo" style="display: ${display_style};"><code>> ${t_cmd} </code>\n<samp> ${last_output} </samp>
+			</pre>`;
+		return html;
+	}
+
+	async selectRun(jobIndex, runIndex, taskIndex) {
+		JOBS.Jobs[jobIndex].displaystate.visibility = true;
+		JOBS.Jobs[jobIndex].displaystate.selected_run = runIndex;
+		JOBS.Jobs[jobIndex].displaystate.selected_task = taskIndex;
+		var e = document.getElementById(`job${jobIndex}`);
+		let div = await jobDiv(JOBS.Jobs[jobIndex], jobIndex);
+		let s = e.scrollLeft;
+		e.parentNode.replaceChild(div, e);
+		div.scrollLeft = s;
+	}
+
+	async onOff(job) {
+		let res = await fetch(`/onoff?job=${job}`);
+		this.dispatchEvent(new CustomEvent('job-change', {bubbles: true}));
+	}
+
+	async runNow(job) {
+		let res = await fetch(`/runnow?job=${job}`);
+		this.dispatchEvent(new CustomEvent('job-change', {bubbles: true}));
+	}
+
+	async restartSelected(job, run, task) {
+		let res = await fetch(`/restart?job=${job}&run=${run}&task=${task}`);
+		this.dispatchEvent(new CustomEvent('job-change', {bubbles: true}));
+	}
+
+	async cancelSelected(job, run, task) {
+		let res = await fetch(`/cancel?job=${job}&run=${run}&task=${task}`);
+		this.dispatchEvent(new CustomEvent('job-change', {bubbles: true}));
+	}
+
+	async getTaskLastOutput(job, run, task) {
+		let res = await fetch(`/lastoutput?job=${job}&run=${run}&task=${task}`);
+		let t = await res.text();
+		return t;
+	}
+
+	getHTMLStatus(runStatus) {
+		// "&#9632;", "&Cross;", "&#9704;" "&#9633;"
+		const statusSymbols = ['■', '⨯', '◨', '□'];
+		return statusSymbols[runStatus] || '?';
+	}
+
+	async showHide(jobIndex) {
+		JOBS.Jobs[jobIndex].displaystate.visibility = !JOBS.Jobs[jobIndex].displaystate.visibility;
+		var e = document.getElementById(`job${jobIndex}`);
+		let div = await jobDiv(JOBS.Jobs[jobIndex], jobIndex);
+		let s = e.scrollLeft;
+		e.parentNode.replaceChild(div, e);
+		div.scrollLeft = s;
+	}
+
+	formatDateTime(d) {
+		return (
+			d.getDate().toString().padStart(2, '0') + "-" +
+			(d.getMonth()+1).toString().padStart(2, '0') + "-" +
+			d.getFullYear() + " " + 
+			d.getHours().toString().padStart(2, '0') + ":" + 
+			d.getMinutes().toString().padStart(2, '0') + ":" +
+			d.getSeconds().toString().padStart(2, '0')
+		);
+	}
+}
+customElements.define('x-job', XJob);
+customElements.define('x-parsing-errors', XParsingErrors);
+customElements.define('x-login', XLogin);
+customElements.define('x-repeater', XRepeater);
+
+</script>
 </body>
 </html>
