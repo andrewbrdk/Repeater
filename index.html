@@ -26,8 +26,12 @@
 		x-job {
 			display: block;
 			margin-bottom: 20px;
+		}
+		x-job .table-container {
+			display: block;
 			overflow-x: auto;
 			overflow-y: hidden;
+			width: 100%;
 		}
 		x-job table {
 			width: 100%;
@@ -218,7 +222,7 @@ class XRepeater extends HTMLElement {
 		}
 		this.#allJobs.replaceChildren(...xjobs);
 		xjobs.forEach((j, _) => {
-			j.scrollLeft = j.scrollWidth;
+			j.querySelector('.table-container').scrollLeft = j.scrollWidth;
 		});
 	}
 
@@ -265,10 +269,10 @@ class XLogin extends HTMLElement {
 			body: JSON.stringify({ password }),
 		});
 		if (response.ok) {
-			document.getElementById("invalidpassword").style.display = "none";
+			this.getElementById("invalidpassword").style.display = "none";
 			renderPage();
 		} else {
-			document.getElementById("invalidpassword").style.display = "inline";
+			this.getElementById("invalidpassword").style.display = "inline";
 		}
 	}
 }
@@ -298,7 +302,7 @@ class XParsingErrors extends HTMLElement {
 class XJob extends HTMLElement {
 	job = null;
 	jobIndex = null;
-	collapsed = true;
+	#_collapsed = true;
 	selectedRun = null;
 	selectedTask = null;	
 
@@ -321,6 +325,23 @@ class XJob extends HTMLElement {
 		}
 	}
 
+	set collapsed(val) {
+		this.#_collapsed = val;
+		if (this.#_collapsed) {
+			this.setAttribute('collapsed', '');
+		} else {
+			this.removeAttribute('collapsed');
+		}
+		let btn = this.querySelector('button.collapse_btn');
+		if (btn) {
+			btn.textContent = this.#_collapsed ? '+' : '-';
+		}
+	}
+	
+	get collapsed() {
+		return this.#_collapsed;
+	}
+
 	async init(job, jobIndex) {
 		this.job = job;
 		this.jobIndex = jobIndex;
@@ -328,10 +349,10 @@ class XJob extends HTMLElement {
 	}
 	
 	async jobHTML() {
-		let html = `<table>`;
+		let html = `<div class="table-container"><table>`;
 		html += this.jobTableHeaderHTML();
 		html += this.jobTableTasksHTML();
-		html += `</table>`;
+		html += `</table></div>`;
 		html += await this.jobRunInfoHTML();
 		return html;
 	}
@@ -475,8 +496,6 @@ class XJob extends HTMLElement {
 
 	async showHide() {
 		this.collapsed = !this.collapsed;
-		this.toggleAttribute('collapsed');
-		this.querySelector('button.collapse_btn').textContent = this.collapsed ? '+' : '-';
 	}
 
 	formatDateTime(d) {
