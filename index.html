@@ -208,9 +208,9 @@ class XRepeater extends HTMLElement {
 		for await (const [jobIndex, job] of this.#jobsData['Jobs'].entries()) {
 			let j = document.createElement('x-job');
 			let existing_job = this.#allJobs.querySelector(`#job${jobIndex}`);
-			let {collapsed, selectedRun, selectedTask} = existing_job ? existing_job.getDisplayedState() : {collapsed: true, selectedRun: null, selectedTask: null};
+			let {collapsed, selectedRun, selectedTask, scrollPosition} = existing_job ? existing_job.getDisplayedState() : {collapsed: true, selectedRun: null, selectedTask: null, scrollPosition: null};
 			//todo: match by job id
-			await j.init(job, jobIndex, collapsed, selectedRun, selectedTask);			
+			await j.init(job, jobIndex, collapsed, selectedRun, selectedTask, scrollPosition);			
 			xjobs.push(j);
 		}
 		this.#allJobs.replaceChildren(...xjobs);
@@ -297,13 +297,15 @@ class XJob extends HTMLElement {
 	#collapsed = true;
 	#selectedRun = null;
 	#selectedTask = null;
+	#scrollPosition = null;
 
 	//todo: simplify
 	getDisplayedState() {
 		return {
 			collapsed: this.#collapsed,
 			selectedRun: this.#selectedRun,
-			selectedTask: this.#selectedTask
+			selectedTask: this.#selectedTask,
+			scrollPosition: this.#scrollPosition
 		};
 	}
 
@@ -340,31 +342,39 @@ class XJob extends HTMLElement {
 				this.#collapsed = false;
 				this.#selectedRun = parseInt(e.target.dataset.runidx);
 				this.#selectedTask = e.target.dataset.taskidx ? parseInt(e.target.dataset.taskidx) : null;
-				let s = this.querySelector('div.table-container').scrollLeft;
+				//let s = this.querySelector('div.table-container').scrollLeft;
 				await this.render();
-				this.querySelector('div.table-container').scrollLeft = s;
+				//this.querySelector('div.table-container').scrollLeft = s;
 			}
 		};
+
+		// todo: save scroll position before rerendering
+		let tc = this.querySelector('div.table-container');
+		if (tc) tc.onscroll = () => { this.#scrollPosition = tc.scrollLeft; };
 	}
 	
 	unbindEvents() {
 		this.onclick = null;
 		this.querySelectorAll('button').forEach(btn => btn.onclick = null);
+		this.querySelector('div.table-container').onscroll = null;
 	}
 
 	setScrollPosition() {
 		let tc = this.querySelector('div.table-container');
-		if (tc) {
+		if (tc && this.#scrollPosition !== null) {
+			tc.scrollLeft = this.#scrollPosition;
+		} else if (tc) {
 			tc.scrollLeft = tc.scrollWidth;
 		}
 	}
 
-	async init(job, jobIndex, collapsed, selectedRun, selectedTask) {
+	async init(job, jobIndex, collapsed, selectedRun, selectedTask, scrollPosition) {
 		this.job = job;
 		this.jobIndex = jobIndex;
 		this.#collapsed = collapsed;
 		this.#selectedRun = selectedRun;
 		this.#selectedTask = selectedTask;
+		this.#scrollPosition = scrollPosition;
 		await this.render();
 	}
 	
@@ -464,6 +474,7 @@ class XJob extends HTMLElement {
 		const t_cmd = t ? t.RenderedCmd : '';
 		let last_output = ''
 		if (!this.#collapsed && r && t) {
+			//todo: when a task is selected, scroll position doesn't restore smoothly
 			last_output = await this.getTaskLastOutput(this.jobIndex, sr, st);
 			html += `
 				<p class="taskruninfo">
