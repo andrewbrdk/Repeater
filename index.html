@@ -214,9 +214,6 @@ class XRepeater extends HTMLElement {
 			xjobs.push(j);
 		}
 		this.#allJobs.replaceChildren(...xjobs);
-		xjobs.forEach((j, _) => {
-			j.querySelector('.table-container').scrollLeft = j.scrollWidth;
-		});
 	}
 
 	setupEventSource() {
@@ -299,7 +296,7 @@ class XJob extends HTMLElement {
 	jobIndex = null;
 	#collapsed = true;
 	#selectedRun = null;
-	#selectedTask = null;	
+	#selectedTask = null;
 
 	//todo: simplify
 	getDisplayedState() {
@@ -318,6 +315,7 @@ class XJob extends HTMLElement {
 		this.id = `job${this.jobIndex}`;
 		this.innerHTML = await this.jobHTML();
 		this.bindEvents();
+		this.setScrollPosition();
 	}
 
 	bindEvents() {
@@ -352,6 +350,13 @@ class XJob extends HTMLElement {
 	unbindEvents() {
 		this.onclick = null;
 		this.querySelectorAll('button').forEach(btn => btn.onclick = null);
+	}
+
+	setScrollPosition() {
+		let tc = this.querySelector('div.table-container');
+		if (tc) {
+			tc.scrollLeft = tc.scrollWidth;
+		}
 	}
 
 	async init(job, jobIndex, collapsed, selectedRun, selectedTask) {
