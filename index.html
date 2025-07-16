@@ -394,7 +394,7 @@ class XJob extends HTMLElement {
 		let html = `
 			<tr>
 			<th class="collapse_btn"><button class="collapse_btn">${showhidebtn_text}</button></th>
-			<th class="task_names"><strong>${this.job.Title}</strong></th>`;
+			<th class="task_names"><strong>${escapeHTML(this.job.Title)}</strong></th>`;
 		this.job.RunHistory.forEach((run, runIndex) => {
 			tooltip = `Scheduled: ${this.formatDateTime(new Date(run.ScheduledTime))}`
 			selected = (!this.#collapsed && this.#selectedRun === runIndex && this.#selectedTask === null) ? 'selected' : '';
@@ -411,7 +411,7 @@ class XJob extends HTMLElement {
 		html += `
 			<th class="states">${next_scheduled}</th>
 			<th class="fill"> </th>
-			<th class="schedule">${this.job.HCron}</th>
+			<th class="schedule">${escapeHTML(this.job.HCron)}</th>
 			<th class="runnow_btn"><button class="runnow_btn">Run Now</button></th>`;
 		let onoff_btn_html = ""
 		if (this.job.Cron != "") {
@@ -435,7 +435,7 @@ class XJob extends HTMLElement {
 				html += `
 					<tr class="hist${this.jobIndex}" style="visibility: ${visibility};">
 					<td class="collapse_btn"> </td>
-					<td class="task_names">${offset + taskName}</td>`;
+					<td class="task_names">${offset + escapeHTML(taskName)}</td>`;
 				this.job.RunHistory.forEach((run, runIndex) => {
 					selected = (!this.#collapsed && this.#selectedRun === runIndex && this.#selectedTask === taskIndex) ? 'selected' : '';
 					html += `
@@ -482,7 +482,7 @@ class XJob extends HTMLElement {
 				<button class="restartTask">Restart task</button>
 				<button class="cancelTask">Cancel task</button>
 				</p>
-				<pre class="taskruninfo"><code>> ${t_cmd} </code>\n<samp> ${last_output} </samp>
+				<pre class="taskruninfo"><code>> ${escapeHTML(t_cmd)} </code>\n<samp> ${escapeHTML(last_output)} </samp>
 				</pre>`;
 		}
 		return html;
@@ -538,6 +538,13 @@ class XJob extends HTMLElement {
 		);
 	}
 }
+
+function escapeHTML(str) {
+	const div = document.createElement('div');
+	div.textContent = str;
+	return div.innerHTML;
+}
+
 customElements.define('x-job', XJob);
 customElements.define('x-parsing-errors', XParsingErrors);
 customElements.define('x-login', XLogin);
