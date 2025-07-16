@@ -110,12 +110,6 @@
 			color: black;
 			text-decoration: none;
 		}
-		x-job[collapsed] .collapsible {
-			display: none;
-		}
-		x-job[collapsed] tr.collapsible {
-			visibility: collapse;
-		}
 		x-job pre.taskruninfo {
 			background-color: #eee;
 			font-family: courier, monospace;
@@ -210,14 +204,10 @@ class XRepeater extends HTMLElement {
 		let xjobs = [];
 		for await (const [jobIndex, job] of this.#jobsData['Jobs'].entries()) {
 			let j = document.createElement('x-job');
-			await j.init(job, jobIndex);
-			//todo: match by job id
 			let existing_job = this.#allJobs.querySelector(`#job${jobIndex}`);
-			if (existing_job) {
-				j.collapsed = existing_job.collapsed;
-				j.selectedRun = existing_job.selectedRun;
-				j.selectedTask = existing_job.selectedTask;
-			}
+			let {collapsed, selectedRun, selectedTask} = existing_job ? existing_job.getDisplayedState() : {collapsed: true, selectedRun: null, selectedTask: null};
+			//todo: match by job id
+			await j.init(job, jobIndex, collapsed, selectedRun, selectedTask);			
 			xjobs.push(j);
 		}
 		this.#allJobs.replaceChildren(...xjobs);
@@ -302,50 +292,70 @@ class XParsingErrors extends HTMLElement {
 class XJob extends HTMLElement {
 	job = null;
 	jobIndex = null;
-	#_collapsed = true;
-	selectedRun = null;
-	selectedTask = null;	
+	#collapsed = true;
+	#selectedRun = null;
+	#selectedTask = null;	
+
+	//todo: simplify
+	getDisplayedState() {
+		return {
+			collapsed: this.#collapsed,
+			selectedRun: this.#selectedRun,
+			selectedTask: this.#selectedTask
+		};
+	}
 
 	connectedCallback() {
-		this.id = `job${this.jobIndex}`;
-		let btn = this.querySelector('button.collapse_btn');
-		if (btn) {
-			btn.addEventListener('click', () => this.showHide());
-		}
-		btn = this.querySelector('button.runnow_btn');
-		if (btn) {
-			btn.addEventListener('click', () => this.runNow());
-		}
-		btn = this.querySelector('button.onoff_btn');
-		if (btn) {
-			btn.addEventListener('click', () => this.onOff());
-		}
-		if (this.collapsed) {
-			this.setAttribute('collapsed', '');
-		}
+		this.render();
 	}
 
-	set collapsed(val) {
-		this.#_collapsed = val;
-		if (this.#_collapsed) {
-			this.setAttribute('collapsed', '');
-		} else {
-			this.removeAttribute('collapsed');
-		}
-		let btn = this.querySelector('button.collapse_btn');
-		if (btn) {
-			btn.textContent = this.#_collapsed ? '+' : '-';
-		}
+	async render() {
+		this.id = `job${this.jobIndex}`;
+		this.innerHTML = await this.jobHTML();
+		this.bindEvents();
+	}
+
+	bindEvents() {
+		this.unbindEvents();
+
+		this.querySelector('button.collapse_btn').onclick = () => this.showHide();
+		this.querySelector('button.runnow_btn').onclick = () => this.runNow();
+		let btn = this.querySelector('button.onoff_btn');
+		if (btn) btn.onclick = () => this.onOff();
+		btn = this.querySelector('button.restartJob');
+		if (btn) btn.onclick = () => this.restartSelected(this.jobIndex, this.#selectedRun, null);
+		btn = this.querySelector('button.restartTask');
+		if (btn) btn.onclick = () => this.restartSelected(this.jobIndex, this.#selectedRun, this.#selectedTask);
+		btn = this.querySelector('button.cancelJob');
+		if (btn) btn.onclick = () => this.cancelSelected(this.jobIndex, this.#selectedRun, null);
+		btn = this.querySelector('button.cancelTask');
+		if (btn) btn.onclick = () => this.cancelSelected(this.jobIndex, this.#selectedRun, this.#selectedTask);
+		
+		this.onclick = async (e) => {
+			if (e.target.matches('table a')) {
+				e.preventDefault();
+				this.#collapsed = false;
+				this.#selectedRun = parseInt(e.target.dataset.runidx);
+				this.#selectedTask = e.target.dataset.taskidx ? parseInt(e.target.dataset.taskidx) : null;
+				let s = this.querySelector('div.table-container').scrollLeft;
+				await this.render();
+				this.querySelector('div.table-container').scrollLeft = s;
+			}
+		};
 	}
 	
-	get collapsed() {
-		return this.#_collapsed;
+	unbindEvents() {
+		this.onclick = null;
+		this.querySelectorAll('button').forEach(btn => btn.onclick = null);
 	}
 
-	async init(job, jobIndex) {
+	async init(job, jobIndex, collapsed, selectedRun, selectedTask) {
 		this.job = job;
 		this.jobIndex = jobIndex;
-		this.innerHTML = await this.jobHTML();	
+		this.#collapsed = collapsed;
+		this.#selectedRun = selectedRun;
+		this.#selectedTask = selectedTask;
+		await this.render();
 	}
 	
 	async jobHTML() {
@@ -358,18 +368,19 @@ class XJob extends HTMLElement {
 	}
 
 	jobTableHeaderHTML() {
-		let showhidebtn_text = this.collapsed ? '+' : '-';
+		let showhidebtn_text = this.#collapsed ? '+' : '-';
 		let tooltip = null;
+		let selected = null;
 		let html = `
 			<tr>
 			<th class="collapse_btn"><button class="collapse_btn">${showhidebtn_text}</button></th>
 			<th class="task_names"><strong>${this.job.Title}</strong></th>`;
 		this.job.RunHistory.forEach((run, runIndex) => {
-			let selected = (!this.collapsed && this.selectedRun == runIndex && this.selectedTask === null) ? 'selected' : '';
 			tooltip = `Scheduled: ${this.formatDateTime(new Date(run.ScheduledTime))}`
+			selected = (!this.#collapsed && this.#selectedRun === runIndex && this.#selectedTask === null) ? 'selected' : '';
 			html += `
 				<th id="job${this.jobIndex}run${runIndex}" class="states ${selected}">
-				<a href="/#job${this.jobIndex}run${runIndex}" onclick="selectRun(${this.jobIndex}, ${runIndex}, null);return false;" tooltip="${tooltip}">${this.getHTMLStatus(run.Status)}</a>
+				<a href="/#job${this.jobIndex}run${runIndex}" data-runidx="${runIndex}" tooltip="${tooltip}">${this.getHTMLStatus(run.Status)}</a>
 				</th>`;
 		});
 		let next_scheduled = `<span> </span>`;
@@ -396,18 +407,20 @@ class XJob extends HTMLElement {
 	jobTableTasksHTML() {
 		let html = ''
 		let taskIndex = 0;
+		let selected = null;
 		this.job.Order.forEach((group, groupIdx) => {
 			group.forEach((taskName) => {
 				let offset = this.job.OrderProvided ? '&nbsp;&nbsp;'.repeat(groupIdx) : '';
+				let visibility = this.#collapsed ? 'collapse' : 'visible';
 				html += `
-					<tr class="hist${this.jobIndex} collapsible">
+					<tr class="hist${this.jobIndex}" style="visibility: ${visibility};">
 					<td class="collapse_btn"> </td>
 					<td class="task_names">${offset + taskName}</td>`;
 				this.job.RunHistory.forEach((run, runIndex) => {
-					let selected = (!this.collapsed && this.selectedRun == runIndex && this.selectedTask == taskIndex) ? 'selected' : '';
+					selected = (!this.#collapsed && this.#selectedRun === runIndex && this.#selectedTask === taskIndex) ? 'selected' : '';
 					html += `
 						<td id="job${this.jobIndex}run${runIndex}task${taskIndex}" class="states ${selected}">
-						<a href="/#job${this.jobIndex}run${runIndex}task${taskIndex}" onclick="selectRun(${this.jobIndex}, ${runIndex}, ${taskIndex});return false;">${this.getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
+						<a href="/#job${this.jobIndex}run${runIndex}task${taskIndex}" data-runidx="${runIndex}" data-taskidx="${taskIndex}">${this.getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
 						</td>`;
 				});
 				html += `
@@ -423,43 +436,35 @@ class XJob extends HTMLElement {
 	}
 
 	async jobRunInfoHTML() {
-		let sr = this.selected_run;
+		let sr = this.#selectedRun;
 		let r = this.job.RunHistory[sr];
 		const r_sch = r ? this.formatDateTime(new Date(r['ScheduledTime'])) : '';
-		let html = `
-			<p class="collapsible">
-			Job scheduled: ${r_sch}
-			<button onclick="restartSelected(${this.jobIndex}, ${sr}, null)">Restart job</button>
-			<button onclick="cancelSelected(${this.jobIndex}, ${sr}, null)">Cancel job</button>
+		let html = '';
+		if (!this.#collapsed && r) {
+			html += `
+			<p class="runinfo">
+			<span class="job-schedule">Job scheduled: ${r_sch}</span>
+			<button class="restartJob">Restart job</button>
+			<button class="cancelJob">Cancel job</button>
 			</p>`;
-		let st = this.selected_Task;
+		}
+		let st = this.#selectedTask;
 		let t = r ? r.TasksHistory[st] : null;
 		const t_st = t && t['StartTime'] != "0001-01-01T00:00:00Z" ? this.formatDateTime(new Date(t['StartTime'])) : '-';
 		const t_cmd = t ? t.RenderedCmd : '';
 		let last_output = ''
-		if (!this.collapsed && r && t) {
+		if (!this.#collapsed && r && t) {
 			last_output = await this.getTaskLastOutput(this.jobIndex, sr, st);
+			html += `
+				<p class="taskruninfo">
+				Task started: ${t_st}
+				<button class="restartTask">Restart task</button>
+				<button class="cancelTask">Cancel task</button>
+				</p>
+				<pre class="taskruninfo"><code>> ${t_cmd} </code>\n<samp> ${last_output} </samp>
+				</pre>`;
 		}
-		html += `
-			<p class="collapsible">
-			Task started: ${t_st}
-			<button onclick="restartSelected(${this.jobIndex}, ${sr}, ${st})">Restart task</button>
-			<button onclick="cancelSelected(${this.jobIndex}, ${sr}, ${st})">Cancel task</button>
-			</p>
-			<pre class="taskruninfo collapsible"><code>> ${t_cmd} </code>\n<samp> ${last_output} </samp>
-			</pre>`;
 		return html;
-	}
-
-	async selectRun(jobIndex, runIndex, taskIndex) {
-		JOBS.Jobs[jobIndex].displaystate.visibility = true;
-		JOBS.Jobs[jobIndex].displaystate.selected_run = runIndex;
-		JOBS.Jobs[jobIndex].displaystate.selected_task = taskIndex;
-		var e = document.getElementById(`job${jobIndex}`);
-		let div = await jobDiv(JOBS.Jobs[jobIndex], jobIndex);
-		let s = e.scrollLeft;
-		e.parentNode.replaceChild(div, e);
-		div.scrollLeft = s;
 	}
 
 	async onOff() {
@@ -495,7 +500,10 @@ class XJob extends HTMLElement {
 	}
 
 	async showHide() {
-		this.collapsed = !this.collapsed;
+		this.#collapsed = !this.#collapsed;
+		this.#selectedRun = null;
+		this.#selectedTask = null;
+		this.render();
 	}
 
 	formatDateTime(d) {
