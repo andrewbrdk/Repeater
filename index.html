@@ -223,7 +223,6 @@ class XRepeater extends HTMLElement {
 		if (!this.#evSrc || this.#evSrc.readyState === EventSource.CLOSED) {
 			this.#evSrc = new EventSource("/events");
 			this.#evSrc.onmessage = (e) => {
-				//todo: don't redraw the page on every event
 				this.renderPage();
 			};
 			this.#evSrc.onerror = () => {
@@ -279,23 +278,18 @@ class XLogin extends HTMLElement {
 }
 
 class XParsingErrors extends HTMLElement {
-	#pre = null;
-
 	connectedCallback() {
 		this.innerHTML = `
 			<h4>Jobs Parsing Errors:</h4>
 			<pre></pre>
 		`;
-		this.#pre = this.querySelector('pre');
 	}
 
 	async renderParsingErrors() {
 		let res = await fetch(`/parsingerrors`);
 		let e = await res.text();
-		if (e) {
-			this.#pre.textContent = e;
-			this.hidden = false;
-		}
+		this.querySelector('pre').textContent = e;
+		this.hidden = e.trim() ? false : true;
 	}
 }
 
