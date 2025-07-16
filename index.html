@@ -172,6 +172,9 @@ class XRepeater extends HTMLElement {
 		this.addEventListener('job-change', (e) => {
 			this.renderPage();
 		});
+		this.addEventListener('loginsuccess', (e) => {
+			this.renderPage();
+		});
 		this.renderPage();
 	}
 
@@ -240,18 +243,26 @@ class XRepeater extends HTMLElement {
 class XLogin extends HTMLElement {
 	connectedCallback() {
 		this.innerHTML = `
-			<form onsubmit="submitLogin(); return false;">
+			<form>
 				<label for="password">Password:</label>
 				<input type="password" id="password" name="password" required>
-				<button type="button" onclick="submitLogin();">Login</button>
+				<button type="button">Login</button>
 				<br/>
 				<div id="invalidpassword" style="display: none;">Invalid Password</div>
 			</form>
 		`;
+		this.querySelector('form').onsubmit = (e) => {
+			e.preventDefault();
+			this.submitLogin();
+		};
+		this.querySelector('button').onclick = (e) => {
+			e.preventDefault();
+			this.submitLogin();
+		};
 	}
 
 	async submitLogin() {
-		const password = document.getElementById('password').value;
+		const password = this.querySelector('#password').value;
 		const response = await fetch('/login', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
@@ -259,10 +270,10 @@ class XLogin extends HTMLElement {
 			body: JSON.stringify({ password }),
 		});
 		if (response.ok) {
-			this.getElementById("invalidpassword").style.display = "none";
-			renderPage();
+			this.querySelector('#invalidpassword').style.display = "none";
+			this.dispatchEvent(new CustomEvent('loginsuccess', { bubbles: true }));
 		} else {
-			this.getElementById("invalidpassword").style.display = "inline";
+			this.querySelector('#invalidpassword').style.display = "inline";
 		}
 	}
 }
