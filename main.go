@@ -612,8 +612,9 @@ func saveOutputOnDisk(output string, tr *TaskRun) {
 	filename := filepath.Join(CONF.logsDir, tr.logfile)
 	if err := os.WriteFile(filename, []byte(output), 0644); err != nil {
 		errorLog.Printf("Failed to write task output to file %s: %v", filename, err)
+	} else {
+		infoLog.Printf("Task output saved to %s", filename)
 	}
-	infoLog.Printf("Task output saved to %s", filename)
 }
 
 func escapeName(s string) string {
