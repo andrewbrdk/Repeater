@@ -309,16 +309,27 @@ class XJob extends HTMLElement {
 		};
 	}
 
-	connectedCallback() {
-		this.render();
+	async init(job, jobIndex, collapsed, selectedRun, selectedTask, scrollPosition) {
+		//todo: simplify
+		this.job = job;
+		this.jobIndex = jobIndex;
+		this.#collapsed = collapsed;
+		this.#selectedRun = selectedRun;
+		this.#selectedTask = selectedTask;
+		this.#scrollPosition = scrollPosition;
+		this.id = `job${this.jobIndex}`;
+		await this.update();
 	}
 
-	async render() {
-		this.id = `job${this.jobIndex}`;
+	connectedCallback() {
 		this.setScrollPosition();
+		this.update();
+	}
+
+	async update() {
 		this.innerHTML = await this.jobHTML();
-		this.bindEvents();
 		this.setScrollPosition();
+		this.bindEvents();
 	}
 
 	bindEvents() {
@@ -343,9 +354,7 @@ class XJob extends HTMLElement {
 				this.#collapsed = false;
 				this.#selectedRun = parseInt(e.target.dataset.runidx);
 				this.#selectedTask = e.target.dataset.taskidx ? parseInt(e.target.dataset.taskidx) : null;
-				//let s = this.querySelector('div.table-container').scrollLeft;
-				await this.render();
-				//this.querySelector('div.table-container').scrollLeft = s;
+				await this.update();
 			}
 		};
 
@@ -367,16 +376,6 @@ class XJob extends HTMLElement {
 		} else if (tc) {
 			tc.scrollLeft = tc.scrollWidth;
 		}
-	}
-
-	async init(job, jobIndex, collapsed, selectedRun, selectedTask, scrollPosition) {
-		this.job = job;
-		this.jobIndex = jobIndex;
-		this.#collapsed = collapsed;
-		this.#selectedRun = selectedRun;
-		this.#selectedTask = selectedTask;
-		this.#scrollPosition = scrollPosition;
-		await this.render();
 	}
 	
 	async jobHTML() {
@@ -524,7 +523,7 @@ class XJob extends HTMLElement {
 		this.#collapsed = !this.#collapsed;
 		this.#selectedRun = null;
 		this.#selectedTask = null;
-		this.render();
+		this.update();
 	}
 
 	formatDateTime(d) {
