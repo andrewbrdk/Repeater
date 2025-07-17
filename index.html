@@ -67,17 +67,6 @@
 			text-align: center;
 			width: 1.2rem;
 		}
-		x-job [tooltip]:hover::after {
-			display: block;
-			white-space: pre-wrap;
-			text-align: left;
-			position: absolute;
-			content: attr(tooltip);
-			border: 1px solid black;
-			background: #eee;
-			padding: .25em;
-			z-index: 1;
-		}
 		x-job th.selected, td.selected {
 			border-bottom-style: solid;
 			border-width: medium;
@@ -109,6 +98,17 @@
 		x-job table a {
 			color: black;
 			text-decoration: none;
+		}
+		x-job [tooltip]:hover::after {
+			display: block;
+			white-space: pre-wrap;
+			text-align: left;
+			position: absolute;
+			content: attr(tooltip);
+			border: 1px solid black;
+			background: #eee;
+			padding: .25em;
+			z-index: 1;
 		}
 		x-job pre.taskruninfo {
 			background-color: #eee;
@@ -315,6 +315,7 @@ class XJob extends HTMLElement {
 
 	async render() {
 		this.id = `job${this.jobIndex}`;
+		this.setScrollPosition();
 		this.innerHTML = await this.jobHTML();
 		this.bindEvents();
 		this.setScrollPosition();
@@ -474,7 +475,6 @@ class XJob extends HTMLElement {
 		const t_cmd = t ? t.RenderedCmd : '';
 		let last_output = ''
 		if (!this.#collapsed && r && t) {
-			//todo: when a task is selected, scroll position doesn't restore smoothly
 			last_output = await this.getTaskLastOutput(this.jobIndex, sr, st);
 			html += `
 				<p class="taskruninfo">
