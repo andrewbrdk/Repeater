@@ -8,6 +8,7 @@
 		body {
 			margin-left: 10%;
 			margin-right: 10%;
+			font-family: sans-serif;
 		}
 		x-repeater, x-login, x-parsing-errors, #alljobs {
 			display: block;
@@ -68,19 +69,29 @@
 			text-align: center;
 			width: 1.2rem;
 		}
-		x-job th.selected, td.selected {
+		x-job th.selected, x-job td.selected {
 			border-bottom-style: solid;
 			border-width: medium;
 		}
-		x-job th.schedule, td.schedule {
+		x-job th.schedule, x-job td.schedule {
 			width: 10rem;
 			min-width: 10rem;
+			max-width: 10rem;
 			text-align: right;
 			position: sticky;
 			right: 10rem;
+			/* todo: show full schedule on hover */
+			white-space: nowrap;
+			overflow: hidden;
 			background-color: white;
+  			text-overflow: ellipsis;
+			font-style: italic;
+			font-size: 0.9em;
 		}
-		x-job th.runnow_btn, td.runnow_btn {
+		x-job th strong {
+			font-weight: 600;
+		}
+		x-job th.runnow_btn, x-job td.runnow_btn {
 			width: 5rem;
 			min-width: 5rem;
 			text-align: right;
@@ -88,7 +99,7 @@
 			right: 5rem;
 			background-color: white;
 		}
-		x-job th.onoff_btn, td.onoff_btn {
+		x-job th.onoff_btn, x-job td.onoff_btn {
 			width: 5rem;
 			min-width: 5rem;
 			text-align: right;
@@ -113,7 +124,7 @@
 		}
 		x-job pre.taskruninfo {
 			background-color: #eee;
-			font-family: courier, monospace;
+			font-family: monospace;
 			padding: 0 3px;
 			display: block;
 			font-size: 1.2em;
