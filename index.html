@@ -151,12 +151,12 @@
 class XRepeater extends HTMLElement {
 	#jobsData = {};
 	#evSrc = null;
-	
 	#login = null;
 	#parsingErrors = null;
 	#allJobs = null;
 
-	connectedCallback() {
+	constructor() {
+		super();
 		this.innerHTML = `
 			<h1><a href="/">Repeater</a></h1>
 			<x-login></x-login>
@@ -237,7 +237,8 @@ class XRepeater extends HTMLElement {
 }
 
 class XLogin extends HTMLElement {
-	connectedCallback() {
+	constructor() {
+		super();
 		this.innerHTML = `
 			<form>
 				<label for="password">Password:</label>
@@ -275,7 +276,8 @@ class XLogin extends HTMLElement {
 }
 
 class XParsingErrors extends HTMLElement {
-	connectedCallback() {
+	constructor() {
+		super();
 		this.innerHTML = `
 			<h4>Jobs Parsing Errors:</h4>
 			<pre></pre>
@@ -323,7 +325,6 @@ class XJob extends HTMLElement {
 
 	connectedCallback() {
 		this.setScrollPosition();
-		this.update();
 	}
 
 	async update() {
