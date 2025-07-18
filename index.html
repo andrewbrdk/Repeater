@@ -44,18 +44,10 @@
 			text-align: left;
 			margin-bottom: 10px;
 		}
-		x-job th.collapse_btn, td.collapse_btn {
-			width: 2rem;
-			min-width: 2rem;
-			position: sticky;
-			left: 0;
-			background-color: white;
-		}
 		x-job th.task_names, x-job td.task_names {
 			width: 15rem;
 			min-width: 15rem;
 			position: sticky;
-			left: 2rem;
 			background-color: white;
 			/* overflow */
 			/* todo: show full names on hover */
@@ -351,7 +343,6 @@ class XJob extends HTMLElement {
 	bindEvents() {
 		this.unbindEvents();
 
-		this.querySelector('button.collapse_btn').onclick = () => this.showHide();
 		this.querySelector('button.runnow_btn').onclick = () => this.runNow();
 		let btn = this.querySelector('button.onoff_btn');
 		if (btn) btn.onclick = () => this.onOff();
@@ -406,12 +397,10 @@ class XJob extends HTMLElement {
 	}
 
 	jobTableHeaderHTML() {
-		let showhidebtn_text = this.#collapsed ? '+' : '-';
 		let tooltip = null;
 		let selected = null;
 		let html = `
 			<tr>
-			<th class="collapse_btn"><button class="collapse_btn">${showhidebtn_text}</button></th>
 			<th class="task_names"><span class="task_names"><strong>${escapeHTML(this.job.Title)}</strong></span></th>`;
 		this.job.RunHistory.forEach((run, runIndex) => {
 			tooltip = `Scheduled: ${this.formatDateTime(new Date(run.ScheduledTime))}`
@@ -452,7 +441,6 @@ class XJob extends HTMLElement {
 				let visibility = this.#collapsed ? 'collapse' : 'visible';
 				html += `
 					<tr class="hist${this.jobIndex}" style="visibility: ${visibility};">
-					<td class="collapse_btn"> </td>
 					<td class="task_names"><span class="task_names">${offset + escapeHTML(taskName)}</span></td>`;
 				this.job.RunHistory.forEach((run, runIndex) => {
 					selected = (!this.#collapsed && this.#selectedRun === runIndex && this.#selectedTask === taskIndex) ? 'selected' : '';
