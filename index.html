@@ -51,7 +51,7 @@
 			left: 0;
 			background-color: white;
 		}
-		x-job th.task_names, td.task_names {
+		x-job th.task_names, x-job td.task_names {
 			width: 15rem;
 			min-width: 15rem;
 			position: sticky;
@@ -64,7 +64,10 @@
  			text-overflow: ellipsis;
  			white-space: nowrap;
 		}
-		x-job th.states, td.states {
+		x-job span.task_names {
+			cursor: pointer;
+		}
+		x-job th.states, x-job td.states {
 			vertical-align: middle;
 			text-align: center;
 			width: 1.2rem;
@@ -368,6 +371,8 @@ class XJob extends HTMLElement {
 				this.#selectedRun = parseInt(e.target.dataset.runidx);
 				this.#selectedTask = e.target.dataset.taskidx ? parseInt(e.target.dataset.taskidx) : null;
 				await this.update();
+			} else if (e.target.closest('span.task_names')) {
+				this.showHide();
 			}
 		};
 
@@ -407,7 +412,7 @@ class XJob extends HTMLElement {
 		let html = `
 			<tr>
 			<th class="collapse_btn"><button class="collapse_btn">${showhidebtn_text}</button></th>
-			<th class="task_names"><strong>${escapeHTML(this.job.Title)}</strong></th>`;
+			<th class="task_names"><span class="task_names"><strong>${escapeHTML(this.job.Title)}</strong></span></th>`;
 		this.job.RunHistory.forEach((run, runIndex) => {
 			tooltip = `Scheduled: ${this.formatDateTime(new Date(run.ScheduledTime))}`
 			selected = (!this.#collapsed && this.#selectedRun === runIndex && this.#selectedTask === null) ? 'selected' : '';
@@ -448,7 +453,7 @@ class XJob extends HTMLElement {
 				html += `
 					<tr class="hist${this.jobIndex}" style="visibility: ${visibility};">
 					<td class="collapse_btn"> </td>
-					<td class="task_names">${offset + escapeHTML(taskName)}</td>`;
+					<td class="task_names"><span class="task_names">${offset + escapeHTML(taskName)}</span></td>`;
 				this.job.RunHistory.forEach((run, runIndex) => {
 					selected = (!this.#collapsed && this.#selectedRun === runIndex && this.#selectedTask === taskIndex) ? 'selected' : '';
 					html += `
