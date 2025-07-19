@@ -29,6 +29,13 @@
 			margin-bottom: 20px;
 		}
 		x-job .table-container {
+			display: flex;
+			overflow-x: auto;
+			overflow-y: hidden;
+			width: 100%;
+			margin-bottom: 10px;
+		}
+		x-job .states-table-container {
 			display: block;
 			overflow-x: auto;
 			overflow-y: hidden;
@@ -422,21 +429,45 @@ class XJob extends HTMLElement {
 	}
 	
 	async jobHTML() {
-		let html = `<div class="table-container"><table>`;
-		html += this.jobTableHeaderHTML();
-		html += this.jobTableTasksHTML();
-		html += `</table></div>`;
+		let html = this.jobTableHTML();
 		html += `<span class='tooltip' hidden></span>`
 		html += await this.jobRunInfoHTML();
 		return html;
 	}
 
-	jobTableHeaderHTML() {
+	jobTableHTML() {
+		let html = `<div class="table-container">`;
+		html += this.taskNamesTableHTML();
+		html += this.taskStatesTableHTML();
+		html += this.taskScheduleTableHTML();
+		html += `</div>`;
+		return html;
+	}
+
+	taskNamesTableHTML() {
+		let html = `
+		<table>
+			<tr>
+			<th class="task_names"><span class="task_names"><strong>${escapeHTML(this.job.Title)}</strong></span></th>
+			</tr>`;
+		let visibility = this.#collapsed ? 'collapse' : 'visible';
+		this.job.Order.forEach((group, groupIdx) => {
+			group.forEach((taskName) => {
+				let offset = this.job.OrderProvided ? '&nbsp;&nbsp;'.repeat(groupIdx) : '';
+				html += `
+					<tr style="visibility: ${visibility};">
+					<td class="task_names"><span class="task_names">${offset + escapeHTML(taskName)}</span></td>
+					</tr>`;
+			});
+		});
+		html += `</table>`;
+		return html;
+	}
+
+	taskStatesTableHTML() {
 		let tooltip = null;
 		let selected = null;
-		let html = `
-			<tr>
-			<th class="task_names"><span class="task_names"><strong>${escapeHTML(this.job.Title)}</strong></span></th>`;
+		let html = `<div class="states-table-container"><table><tr>`;
 		this.job.RunHistory.forEach((run, runIndex) => {
 			tooltip = `Scheduled: ${this.formatDateTime(new Date(run.ScheduledTime))}`
 			selected = (!this.#collapsed && this.#selectedRun === runIndex && this.#selectedTask === null) ? 'selected' : '';
@@ -453,30 +484,12 @@ class XJob extends HTMLElement {
 		html += `
 			<th class="states">${next_scheduled}</th>
 			<th class="fill"> </th>
-			<th class="schedule">${escapeHTML(this.job.HCron)}</th>
-			<th class="runnow_btn"><button class="runnow_btn">Run Now</button></th>`;
-		let onoff_btn_html = ""
-		if (this.job.Cron != "") {
-			onoff_btn_html = `<button class="onoff_btn">${this.job.OnOff ? 'Turn Off' : 'Turn On'}</button>`;
-		}
-		html += `
-			<th class="onoff_btn">${onoff_btn_html}</th>
-			</tr>
-		`;
-		return html;
-	}
-
-	jobTableTasksHTML() {
-		let html = ''
+			</tr>`
 		let taskIndex = 0;
-		let selected = null;
+		let visibility = this.#collapsed ? 'collapse' : 'visible';
 		this.job.Order.forEach((group, groupIdx) => {
-			group.forEach((taskName) => {
-				let offset = this.job.OrderProvided ? '&nbsp;&nbsp;'.repeat(groupIdx) : '';
-				let visibility = this.#collapsed ? 'collapse' : 'visible';
-				html += `
-					<tr class="hist${this.jobIndex}" style="visibility: ${visibility};">
-					<td class="task_names"><span class="task_names">${offset + escapeHTML(taskName)}</span></td>`;
+			group.forEach((taskName) => {	
+				html += `<tr style="visibility: ${visibility};">`;
 				this.job.RunHistory.forEach((run, runIndex) => {
 					selected = (!this.#collapsed && this.#selectedRun === runIndex && this.#selectedTask === taskIndex) ? 'selected' : '';
 					html += `
@@ -487,12 +500,36 @@ class XJob extends HTMLElement {
 				html += `
 					<td class="states"> </td>
 					<td class="fill"> </td>
-					<td class="schedule"> </td>
-					<td class="runnow_btn"> </td>
-					<td class="onoff_btn"> </td>
 					</tr>`;
 				taskIndex++;
 		})});
+		html += `</table></div>`;
+		return html;
+	}
+
+	taskScheduleTableHTML() {
+		let html = `<table>
+			<tr>
+			<th class="schedule">${escapeHTML(this.job.HCron)}</th>
+			<th class="runnow_btn"><button class="runnow_btn">Run Now</button></th>`;
+		let onoff_btn_html = ""
+		if (this.job.Cron != "") {
+			onoff_btn_html = `<button class="onoff_btn">${this.job.OnOff ? 'Turn Off' : 'Turn On'}</button>`;
+		}
+		html += `
+			<th class="onoff_btn">${onoff_btn_html}</th>
+			</tr>`;
+		let visibility = this.#collapsed ? 'collapse' : 'visible';
+		this.job.Order.forEach((group, groupIdx) => {
+			group.forEach((taskName) => {
+				html += `<tr style="visibility: ${visibility};">
+				<td class="schedule"> </td>
+				<td class="runnow_btn"> </td>
+				<td class="onoff_btn"> </td>
+				</tr>`;
+			});
+		});
+		html += `</table>`;
 		return html;
 	}
 
