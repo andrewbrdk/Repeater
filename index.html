@@ -28,8 +28,9 @@
 			display: block;
 			margin-bottom: 20px;
 		}
-		x-job .table-container {
+		x-job .tables {
 			display: flex;
+			align-items: flex-start;
 			overflow-x: auto;
 			overflow-y: hidden;
 			width: 100%;
@@ -45,21 +46,34 @@
 		x-job table {
 			width: 100%;
 		}
+		x-job table.task_names {
+			flex: 1 1 20%;
+			table-layout: fixed;
+		}
+		x-job table.states {
+			flex: 1 1 60%;
+			table-layout: fixed;
+		}
+		x-job table.schedule {
+			flex: 1 1 20%;
+			table-layout: fixed;
+		}
 		x-job table th {
 			font-size: 1.2em;
 			font-weight: normal;
 			text-align: left;
 			margin-bottom: 10px;
 		}
+		x-job table th, x-job table td {
+			vertical-align: middle;
+		}
 		x-job th.task_names, x-job td.task_names {
 			width: 15rem;
 			min-width: 15rem;
-			position: sticky;
-			left: 0;
+			max-width: 15rem;
 			background-color: white;
 			/* overflow */
 			/* todo: show full names on hover */
-			max-width: 15rem;
  			overflow: hidden;
  			text-overflow: ellipsis;
  			white-space: nowrap;
@@ -409,18 +423,18 @@ class XJob extends HTMLElement {
 			};
 		});
 		// todo: save scroll position before rerendering
-		let tc = this.querySelector('div.table-container');
+		let tc = this.querySelector('div.states-table-container');
 		if (tc) tc.onscroll = () => { this.#scrollPosition = tc.scrollLeft; };
 	}
 	
 	unbindEvents() {
 		this.onclick = null;
 		this.querySelectorAll('button').forEach(btn => btn.onclick = null);
-		this.querySelector('div.table-container').onscroll = null;
+		this.querySelector('div.states-table-container').onscroll = null;
 	}
 
 	setScrollPosition() {
-		let tc = this.querySelector('div.table-container');
+		let tc = this.querySelector('div.states-table-container');
 		if (tc && this.#scrollPosition !== null) {
 			tc.scrollLeft = this.#scrollPosition;
 		} else if (tc) {
@@ -436,7 +450,7 @@ class XJob extends HTMLElement {
 	}
 
 	jobTableHTML() {
-		let html = `<div class="table-container">`;
+		let html = `<div class="tables">`;
 		html += this.taskNamesTableHTML();
 		html += this.taskStatesTableHTML();
 		html += this.taskScheduleTableHTML();
@@ -446,7 +460,7 @@ class XJob extends HTMLElement {
 
 	taskNamesTableHTML() {
 		let html = `
-		<table>
+		<table class="task_names">
 			<tr>
 			<th class="task_names"><span class="task_names"><strong>${escapeHTML(this.job.Title)}</strong></span></th>
 			</tr>`;
@@ -467,7 +481,9 @@ class XJob extends HTMLElement {
 	taskStatesTableHTML() {
 		let tooltip = null;
 		let selected = null;
-		let html = `<div class="states-table-container"><table><tr>`;
+		let html = `<div class="states-table-container">
+			<table class="states">
+			<tr>`;
 		this.job.RunHistory.forEach((run, runIndex) => {
 			tooltip = `Scheduled: ${this.formatDateTime(new Date(run.ScheduledTime))}`
 			selected = (!this.#collapsed && this.#selectedRun === runIndex && this.#selectedTask === null) ? 'selected' : '';
@@ -508,7 +524,7 @@ class XJob extends HTMLElement {
 	}
 
 	taskScheduleTableHTML() {
-		let html = `<table>
+		let html = `<table class="schedule">
 			<tr>
 			<th class="schedule">${escapeHTML(this.job.HCron)}</th>
 			<th class="runnow_btn"><button class="runnow_btn">Run Now</button></th>`;
