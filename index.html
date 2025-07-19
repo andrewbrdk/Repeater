@@ -123,6 +123,21 @@
 		x-job span.tooltip[hidden] {
 			display: none;
 		}
+		x-job button.restartJob,
+		x-job button.restartTask,
+		x-job button.cancelJob,
+		x-job button.cancelTask {
+			display: inline-block;
+			background-color: white;
+			border: 1px solid black;
+			border-radius: 7px;
+			cursor: pointer;
+			font-size: 1rem;
+			font-weight: 400;
+			margin: 0 5px;
+			padding: 5px 10px;
+			text-align: center;
+		}
 		x-job pre.taskruninfo {
 			background-color: #eee;
 			font-family: monospace;
@@ -490,8 +505,8 @@ class XJob extends HTMLElement {
 			html += `
 			<p class="runinfo">
 			<span class="job-schedule">Job scheduled: ${r_sch}</span>
-			<button class="restartJob">Restart job</button>
-			<button class="cancelJob">Cancel job</button>
+			<button class="restartJob">Restart Job</button>
+			<button class="cancelJob">Cancel Job</button>
 			</p>`;
 		}
 		let st = this.#selectedTask;
@@ -504,8 +519,8 @@ class XJob extends HTMLElement {
 			html += `
 				<p class="taskruninfo">
 				Task started: ${t_st}
-				<button class="restartTask">Restart task</button>
-				<button class="cancelTask">Cancel task</button>
+				<button class="restartTask">Restart Task</button>
+				<button class="cancelTask">Cancel Task</button>
 				</p>
 				<pre class="taskruninfo"><code>> ${escapeHTML(t_cmd)} </code>\n<samp> ${escapeHTML(last_output)} </samp>
 				</pre>`;
