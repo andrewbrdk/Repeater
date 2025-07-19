@@ -33,7 +33,7 @@
 			overflow-x: auto;
 			overflow-y: hidden;
 			width: 100%;
-			padding-bottom: 10px;
+			padding-bottom: 10px; /*shifts scrollbar*/
 		}
 		x-job table {
 			width: 100%;
@@ -48,6 +48,7 @@
 			width: 15rem;
 			min-width: 15rem;
 			position: sticky;
+			left: 0;
 			background-color: white;
 			/* overflow */
 			/* todo: show full names on hover */
@@ -75,13 +76,13 @@
 			text-align: right;
 			position: sticky;
 			right: 10rem;
-			/* todo: show full schedule on hover */
-			white-space: nowrap;
+			/* white-space: nowrap; */
+			/*text-overflow: ellipsis;*/
+			white-space: pre-wrap;
 			overflow: hidden;
 			background-color: white;
-  			text-overflow: ellipsis;
 			font-style: italic;
-			font-size: 0.9em;
+			font-size: 0.85em;
 		}
 		x-job th strong {
 			font-weight: 600;
@@ -106,16 +107,21 @@
 			color: black;
 			text-decoration: none;
 		}
-		x-job [tooltip]:hover::after {
-			display: block;
-			white-space: pre-wrap;
-			text-align: left;
-			position: absolute;
-			content: attr(tooltip);
-			border: 1px solid black;
-			background: #eee;
+		x-job span.tooltip {
+			display: inline-block;
+			position: absolute;	
+			white-space: nowrap;
+			text-align: left;	
+			border: none;
+			background: white;
 			padding: .25em;
 			z-index: 1;
+			font-style: italic;
+			font-size: 0.9rem;
+			overflow: hidden;	
+		}
+		x-job span.tooltip[hidden] {
+			display: none;
 		}
 		x-job pre.taskruninfo {
 			background-color: #eee;
@@ -367,6 +373,19 @@ class XJob extends HTMLElement {
 			}
 		};
 
+		this.querySelectorAll('[tooltip]').forEach(el => {
+			el.onmouseenter = (e) => {
+				let rect = el.getBoundingClientRect();
+				let t = this.querySelector('span.tooltip');
+				t.textContent = el.attributes.tooltip.textContent;
+				t.style.left = `${rect.left + rect.width/2 + window.scrollX}px`;
+  				t.style.top = `${rect.top - rect.height + window.scrollY}px`;
+				t.hidden = false;
+			};
+			el.onmouseleave = (e) => {
+				this.querySelector('span.tooltip').hidden = true;
+			};
+		});
 		// todo: save scroll position before rerendering
 		let tc = this.querySelector('div.table-container');
 		if (tc) tc.onscroll = () => { this.#scrollPosition = tc.scrollLeft; };
@@ -392,6 +411,7 @@ class XJob extends HTMLElement {
 		html += this.jobTableHeaderHTML();
 		html += this.jobTableTasksHTML();
 		html += `</table></div>`;
+		html += `<span class='tooltip' hidden></span>`
 		html += await this.jobRunInfoHTML();
 		return html;
 	}
