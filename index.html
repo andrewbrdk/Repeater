@@ -191,6 +191,13 @@
 		x-job span.tooltip[hidden] {
 			display: none;
 		}
+		x-job div.taskruninfo_grid {
+			display: grid;
+			grid-template-columns: auto auto auto 1fr;
+			gap: 0.5em;
+			align-items: center;
+			margin-bottom: 0.5em;
+		}
 		x-job button.restartJob,
 		x-job button.restartTask,
 		x-job button.cancelJob,
@@ -578,31 +585,34 @@ class XJob extends HTMLElement {
 		let sr = this.#selectedRun;
 		let r = this.job.RunHistory[sr];
 		const r_sch = r ? this.formatDateTime(new Date(r['ScheduledTime'])) : '';
-		let html = '';
-		if (!this.#collapsed && r) {
-			html += `
-			<p class="runinfo">
-			<span class="job-schedule">Job scheduled: ${r_sch}</span>
-			<button class="restartJob">Restart Job</button>
-			<button class="cancelJob">Cancel Job</button>
-			</p>`;
-		}
+		let job_sel = !this.#collapsed && r;
+		let job_disp = job_sel ? 'style="display: inline-block;"' : 'style="display: none;"';
+		let html = '<div class="taskruninfo_grid">';
+		html += `			
+			<span class="job-schedule" ${job_disp}>Job scheduled: ${r_sch}</span>
+			<button class="restartJob" ${job_disp}>Restart Job</button>
+			<button class="cancelJob" ${job_disp}>Cancel Job</button>
+			<div ${job_disp}></div>
+		`;
 		let st = this.#selectedTask;
 		let t = r ? r.TasksHistory[st] : null;
 		const t_st = t && t['StartTime'] != "0001-01-01T00:00:00Z" ? this.formatDateTime(new Date(t['StartTime'])) : '-';
 		const t_cmd = t ? t.RenderedCmd : '';
-		let last_output = ''
-		if (!this.#collapsed && r && t) {
+		let task_sel = !this.#collapsed && r && t;
+		let task_disp = task_sel ? 'style="display: inline-block;"' : 'style="display: none;"';
+		html += `
+			<span ${task_disp}>Task started: ${t_st}</span>
+			<button class="restartTask" ${task_disp}>Restart Task</button>
+			<button class="cancelTask" ${task_disp}>Cancel Task</button>
+			<div ${task_disp}></div>	
+		</div>`
+		let last_output = '';
+		if (task_sel) {
 			last_output = await this.getTaskLastOutput(this.jobIndex, sr, st);
-			html += `
-				<p class="taskruninfo">
-				Task started: ${t_st}
-				<button class="restartTask">Restart Task</button>
-				<button class="cancelTask">Cancel Task</button>
-				</p>
-				<pre class="taskruninfo"><code>> ${escapeHTML(t_cmd)} </code>\n\n<samp>${escapeHTML(last_output)}</samp>
-				</pre>`;
 		}
+		let output_disp = task_sel ? 'style="display: block;"' : 'style="display: none;"';
+		html += `<pre ${output_disp} class="taskruninfo"><code>> ${escapeHTML(t_cmd)} </code>\n\n<samp>${escapeHTML(last_output)}</samp>
+				</pre>`;
 		return html;
 	}
 
