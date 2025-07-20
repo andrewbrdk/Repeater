@@ -108,28 +108,30 @@
 		x-job table th {
 			font-size: 1.2em;
 			font-weight: normal;
-			text-align: left;
 			margin-bottom: 10px;
+			vertical-align: middle;
 		}
-		x-job table th, x-job table td {
+		x-job table td {
 			vertical-align: middle;
 		}
 		x-job th.task_names, x-job td.task_names {
 			width: 15rem;
 			min-width: 15rem;
 			max-width: 15rem;
-			background-color: white;
 			/* overflow */
 			/* todo: show full names on hover */
  			overflow: hidden;
  			text-overflow: ellipsis;
  			white-space: nowrap;
+			text-align: left;
+		}
+		x-job th strong {
+			font-weight: 600;
 		}
 		x-job span.task_names {
 			cursor: pointer;
 		}
 		x-job th.states, x-job td.states {
-			vertical-align: middle;
 			text-align: center;
 			width: 1.2rem;
 		}
@@ -142,34 +144,22 @@
 			min-width: 10rem;
 			max-width: 10rem;
 			text-align: right;
-			position: sticky;
-			right: 10rem;
 			/* white-space: nowrap; */
 			/*text-overflow: ellipsis;*/
 			white-space: pre-wrap;
 			overflow: hidden;
-			background-color: white;
 			font-style: italic;
 			font-size: 0.85em;
-		}
-		x-job th strong {
-			font-weight: 600;
 		}
 		x-job th.runnow_btn, x-job td.runnow_btn {
 			width: 5rem;
 			min-width: 5rem;
-			text-align: right;
-			position: sticky;
-			right: 5rem;
-			background-color: white;
+			text-align: center;
 		}
 		x-job th.onoff_btn, x-job td.onoff_btn {
 			width: 5rem;
 			min-width: 5rem;
-			text-align: right;
-			position: sticky;
-			right: 0;
-			background-color: white;
+			text-align: center;
 		}
 		x-job table a {
 			color: black;
