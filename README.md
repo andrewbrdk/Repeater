@@ -3,10 +3,10 @@
 A task scheduler for data analytics inspired by [Apache Airflow](https://airflow.apache.org/).
 
 <div align="center">
-    <img src="https://i.postimg.cc/dQhV5xhG/repeater2.png" alt="repeater" width="700">
+    <img src="https://i.postimg.cc/rFJbYDQ1/repeater34.png" alt="repeater" width="700">
 </div>
 
-The service should start at [http://localhost:8080](http://localhost:8080) after the following commands:
+The service starts at [http://localhost:8080](http://localhost:8080) after the following commands:
 
 ```bash
 git clone https://github.com/andrewbrdk/Repeater
@@ -19,6 +19,8 @@ go build
 Docker-compose starts Repeater, [ClickHouse](https://clickhouse.com/), [ch-ui](https://github.com/caioricciuti/ch-ui) and [Streamlit](https://streamlit.io/) to run examples:
 
 ```bash
+git clone https://github.com/andrewbrdk/Repeater
+cd Repeater
 docker compose up --build
 ```
 Repeater: [http://localhost:8080](http://localhost:8080),  
