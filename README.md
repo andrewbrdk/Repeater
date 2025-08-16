@@ -41,7 +41,7 @@ REPEATER_LOGS_DIRECTORY="/tmp/repeater/"       # tasks output directory
 Job example
 ```toml
 title = "example"
-cron = "*/10 * * * * *"            # cron schedule with seconds, optional
+cron = "*/10 * * * * *"            # cron schedule with ("0 */5 * * * *") or without seconds ("*/5 * * * *"), optional
 retries = 1                        # task retries, optional
 task_timeout = 15                  # execution timeout, seconds, optional
 emails = ["yourmail@example.com"]  # email on failure, optional
