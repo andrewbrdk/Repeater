@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -114,7 +113,7 @@ type Job struct {
 }
 
 type JobsAndCron struct {
-	Jobs       []*Job
+	Jobs       map[int]*Job
 	cron       *cron.Cron
 	jobCounter int
 	//todo: add config, make global?
@@ -124,17 +123,19 @@ type JobsAndCron struct {
 }
 
 func main() {
-	var JC JobsAndCron
 	initConfig()
 	jwtSecretKey = generateRandomKey(32)
 	infoLog = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 	errorLog = log.New(os.Stdout, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 	webLog = log.New(&webLogBuf, "", log.Ldate|log.Ltime)
-	JC.cron = cron.New(cron.WithSeconds())
+	JC := &JobsAndCron{
+		Jobs: make(map[int]*Job),
+		cron: cron.New(cron.WithSeconds()),
+	}
 	JC.cron.Start()
-	scanAndScheduleJobs(&JC)
-	go startFSWatcher(&JC)
-	httpServer(&JC)
+	scanAndScheduleJobs(JC)
+	go startFSWatcher(JC)
+	httpServer(JC)
 }
 
 func initConfig() {
@@ -218,9 +219,6 @@ func scanAndScheduleJobs(JC *JobsAndCron) {
 			infoLog.Printf("Skipping %s", f)
 		}
 	}
-	sort.SliceStable(JC.Jobs, func(i, j int) bool {
-		return JC.Jobs[i].Title < JC.Jobs[j].Title
-	})
 	//todo: gen_event()
 	broadcastSSEUpdate(`{"event": "jobs_updated"}`)
 }
@@ -247,14 +245,14 @@ func scanFiles(files map[string][16]byte) error {
 func removeJobsWithoutFiles(files map[string][16]byte, JC *JobsAndCron) {
 	//todo: simplify removing
 	var toremove []int
-	for idx, jb := range JC.Jobs {
+	for id, jb := range JC.Jobs {
 		md5, haskey := files[jb.file]
 		if !haskey {
 			infoLog.Printf("Marking %s for deletion", jb.Title)
-			toremove = append(toremove, idx)
+			toremove = append(toremove, id)
 		} else if md5 != jb.md5 {
 			infoLog.Printf("File %s has changed, marking for reloading", jb.file)
-			toremove = append(toremove, idx)
+			toremove = append(toremove, id)
 		} else if md5 == jb.md5 {
 			infoLog.Printf("File %s has not changed, skipping", jb.file)
 			delete(files, jb.file)
@@ -262,20 +260,10 @@ func removeJobsWithoutFiles(files map[string][16]byte, JC *JobsAndCron) {
 			panic("This is not supposed to happen")
 		}
 	}
-	if len(toremove) > 0 {
-		sort.Sort(sort.Reverse(sort.IntSlice(toremove)))
-		last_idx := len(JC.Jobs) - 1
-		for _, jb_idx := range toremove {
-			JC.cron.Remove(JC.Jobs[jb_idx].cronID)
-			cancelActiveJobRuns(JC.Jobs[jb_idx])
-			JC.Jobs[jb_idx] = JC.Jobs[last_idx]
-			last_idx = last_idx - 1
-		}
-		if last_idx >= 0 {
-			JC.Jobs = JC.Jobs[:last_idx+1]
-		} else {
-			JC.Jobs = nil
-		}
+	for _, id := range toremove {
+		JC.cron.Remove(JC.Jobs[id].cronID)
+		cancelActiveJobRuns(JC.Jobs[id])
+		delete(JC.Jobs, id)
 	}
 }
 
@@ -389,8 +377,8 @@ func processJobFile(filePath string) (*Job, error) {
 func scheduleJob(jb *Job, JC *JobsAndCron) {
 	var err error
 	jb.Id = JC.jobCounter
+	JC.Jobs[JC.jobCounter] = jb
 	JC.jobCounter += 1
-	JC.Jobs = append(JC.Jobs, jb)
 	if jb.Cron != "" {
 		jb.cronID, err = JC.cron.AddFunc(
 			jb.Cron,
