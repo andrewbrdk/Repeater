@@ -84,6 +84,7 @@ type TaskRun struct {
 }
 
 type JobRun struct {
+	Idx           int
 	ScheduledTime time.Time
 	StartTime     time.Time
 	EndTime       time.Time
@@ -93,6 +94,7 @@ type JobRun struct {
 }
 
 type Job struct {
+	Id             int
 	file           string
 	md5            [16]byte
 	Title          string `toml:"title"`
@@ -112,8 +114,9 @@ type Job struct {
 }
 
 type JobsAndCron struct {
-	Jobs []*Job
-	cron *cron.Cron
+	Jobs       []*Job
+	cron       *cron.Cron
+	jobCounter int
 	//todo: add config, make global?
 	//no need for mutex?
 	//Jobs is modified from scanAndScheduleJobs only
@@ -385,6 +388,8 @@ func processJobFile(filePath string) (*Job, error) {
 
 func scheduleJob(jb *Job, JC *JobsAndCron) {
 	var err error
+	jb.Id = JC.jobCounter
+	JC.jobCounter += 1
 	JC.Jobs = append(JC.Jobs, jb)
 	if jb.Cron != "" {
 		jb.cronID, err = JC.cron.AddFunc(
@@ -419,6 +424,7 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 		scheduled_time = time.Now()
 	}
 	run := &JobRun{
+		Idx:           len(jb.RunHistory),
 		ScheduledTime: scheduled_time,
 		StartTime:     time.Now(),
 	}
@@ -604,7 +610,7 @@ func saveOutputOnDisk(output string, tr *TaskRun) {
 		errorLog.Printf("Failed to create logs directory %s: %v", CONF.logsDir, err)
 		return
 	}
-	tr.logfile = fmt.Sprintf("%s_%s_%s.log",
+	tr.logfile = fmt.Sprintf("%s_%s_%s.log", //todo: add indexes and attempt
 		tr.StartTime.Format("20060102T150405"),
 		escapeName(tr.cmdTemplateParams["title"]), // todo: use job.Title
 		escapeName(tr.Name),
