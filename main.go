@@ -767,12 +767,7 @@ func updateJobRunStatusFromTasks(jobRun *JobRun) {
 	jobRun.Status = RunSuccess
 }
 
-func jobOnOff(jobidx int, JC *JobsAndCron) error {
-	if jobidx >= len(JC.Jobs) || jobidx < 0 {
-		errorLog.Printf("incorrect job index %v", jobidx)
-		return errors.New("incorrect job index")
-	}
-	jb := JC.Jobs[jobidx]
+func jobOnOff(jb *Job, JC *JobsAndCron) error {
 	jb.OnOff = !jb.OnOff
 	if jb.OnOff {
 		jb.NextScheduled = JC.cron.Entry(jb.cronID).Next
@@ -790,34 +785,27 @@ func runNow(jb *Job) error {
 	return nil
 }
 
-type HTTPQueryParams struct {
-	jobIndex  int
-	runIndex  int
-	taskIndex int
-}
-
 func httpServer(JC *JobsAndCron) {
-	httpQPars := new(HTTPQueryParams)
 	http.HandleFunc("/", httpIndex)
 	http.HandleFunc("/login", httpLogin)
 	http.HandleFunc("/jobs", func(w http.ResponseWriter, r *http.Request) {
-		httpJobs(w, r, httpQPars, JC)
+		httpJobs(w, r, JC)
 	})
 	http.HandleFunc("/events", httpEvents)
 	http.HandleFunc("/onoff", func(w http.ResponseWriter, r *http.Request) {
-		httpOnOff(w, r, httpQPars, JC)
+		httpOnOff(w, r, JC)
 	})
 	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
-		httpRestart(w, r, httpQPars, JC)
+		httpRestart(w, r, JC)
 	})
 	http.HandleFunc("/cancel", func(w http.ResponseWriter, r *http.Request) {
-		httpCancel(w, r, httpQPars, JC)
+		httpCancel(w, r, JC)
 	})
 	http.HandleFunc("/runnow", func(w http.ResponseWriter, r *http.Request) {
-		httpRunNow(w, r, httpQPars, JC)
+		httpRunNow(w, r, JC)
 	})
 	http.HandleFunc("/lastoutput", func(w http.ResponseWriter, r *http.Request) {
-		httpLastOutput(w, r, httpQPars, JC)
+		httpLastOutput(w, r, JC)
 	})
 	http.HandleFunc("/parsingerrors", httpParsingErrors)
 	log.Fatal(http.ListenAndServe(CONF.port, nil))
@@ -892,7 +880,7 @@ func httpCheckAuth(w http.ResponseWriter, r *http.Request) (error, int, string) 
 	return nil, http.StatusOK, "Ok"
 }
 
-func httpJobs(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
+func httpJobs(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
 	err, code, msg := httpCheckAuth(w, r)
 	if err != nil {
 		http.Error(w, msg, code)
@@ -908,49 +896,34 @@ func httpJobs(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams
 	w.Write(jData)
 }
 
-func httpOnOff(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
+func httpOnOff(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
 	err, code, msg := httpCheckAuth(w, r)
 	if err != nil {
 		http.Error(w, msg, code)
 		return
 	}
-	httpParseJobRunTask(r, httpQPars, JC)
-	err = jobOnOff(httpQPars.jobIndex, JC)
-	if err != nil {
+	job, _, _ := httpParseJobRunTask(r, JC)
+	if job == nil {
 		http.Error(w, "Job not found", http.StatusNotFound)
 		return
 	}
+	jobOnOff(job, JC)
 	// todo: w.Write(json.Marshal(JC))
 	w.WriteHeader(http.StatusOK)
 }
 
-func httpRestart(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
+func httpRestart(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
 	err, code, msg := httpCheckAuth(w, r)
 	if err != nil {
 		http.Error(w, msg, code)
 		return
 	}
-	httpParseJobRunTask(r, httpQPars, JC)
-	var jb *Job
-	jb = nil
-	if httpQPars.jobIndex != -1 {
-		jb = JC.Jobs[httpQPars.jobIndex]
-	}
-	var rn *JobRun
-	rn = nil
-	if jb != nil && httpQPars.runIndex != -1 {
-		rn = jb.RunHistory[httpQPars.runIndex]
-	}
-	var t *TaskRun
-	t = nil
-	if rn != nil && httpQPars.taskIndex != -1 {
-		t = rn.TasksHistory[httpQPars.taskIndex]
-	}
-	if rn != nil && t != nil {
+	job, run, task := httpParseJobRunTask(r, JC)
+	if run != nil && task != nil {
 		//todo: check concurrency issues
-		go restartTaskRun(t, rn)
-	} else if rn != nil {
-		go restartJobRun(jb, rn)
+		go restartTaskRun(task, run)
+	} else if run != nil {
+		go restartJobRun(job, run)
 	} else {
 		http.Error(w, "JobRun or TaskRun not found", http.StatusNotFound)
 		return
@@ -959,34 +932,18 @@ func httpRestart(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryPar
 	w.WriteHeader(http.StatusOK)
 }
 
-func httpCancel(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
+func httpCancel(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
 	err, code, msg := httpCheckAuth(w, r)
 	if err != nil {
 		http.Error(w, msg, code)
 		return
 	}
-	httpParseJobRunTask(r, httpQPars, JC)
-	// todo: simplify
-	var jb *Job
-	jb = nil
-	if httpQPars.jobIndex != -1 {
-		jb = JC.Jobs[httpQPars.jobIndex]
-	}
-	var rn *JobRun
-	rn = nil
-	if jb != nil && httpQPars.runIndex != -1 {
-		rn = jb.RunHistory[httpQPars.runIndex]
-	}
-	var t *TaskRun
-	t = nil
-	if rn != nil && httpQPars.taskIndex != -1 {
-		t = rn.TasksHistory[httpQPars.taskIndex]
-	}
-	if rn != nil && t != nil {
+	job, run, task := httpParseJobRunTask(r, JC)
+	if run != nil && task != nil {
 		//todo: check concurrency issues
-		go cancelTaskRun(t, rn)
-	} else if rn != nil {
-		go cancelJobRun(jb, rn)
+		go cancelTaskRun(task, run)
+	} else if run != nil {
+		go cancelJobRun(job, run)
 	} else {
 		http.Error(w, "JobRun or TaskRun not found", http.StatusNotFound)
 		return
@@ -995,55 +952,35 @@ func httpCancel(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryPara
 	w.WriteHeader(http.StatusOK)
 }
 
-func httpRunNow(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
+func httpRunNow(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
 	err, code, msg := httpCheckAuth(w, r)
 	if err != nil {
 		http.Error(w, msg, code)
 		return
 	}
-	httpParseJobRunTask(r, httpQPars, JC)
-	var jb *Job
-	jb = nil
-	if httpQPars.jobIndex != -1 {
-		jb = JC.Jobs[httpQPars.jobIndex]
-	}
-	err = runNow(jb)
-	if err != nil {
+	job, _, _ := httpParseJobRunTask(r, JC)
+	if job == nil {
 		http.Error(w, "Job not found", http.StatusNotFound)
 		return
 	}
+	runNow(job)
 	// todo: w.Write(json.Marshal(JC))
 	w.WriteHeader(http.StatusOK)
 }
 
-func httpLastOutput(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
+func httpLastOutput(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
 	err, code, msg := httpCheckAuth(w, r)
 	if err != nil {
 		http.Error(w, msg, code)
 		return
 	}
-	httpParseJobRunTask(r, httpQPars, JC)
-	var jb *Job
-	jb = nil
-	if httpQPars.jobIndex != -1 {
-		jb = JC.Jobs[httpQPars.jobIndex]
-	}
-	var rn *JobRun
-	rn = nil
-	if jb != nil && httpQPars.runIndex != -1 {
-		rn = jb.RunHistory[httpQPars.runIndex]
-	}
-	var t *TaskRun
-	t = nil
-	if rn != nil && httpQPars.taskIndex != -1 {
-		t = rn.TasksHistory[httpQPars.taskIndex]
-	}
-	if t == nil {
+	_, _, task := httpParseJobRunTask(r, JC)
+	if task == nil {
 		http.Error(w, "Task not found", http.StatusNotFound)
 		return
 	}
 	var output string
-	output, err = readTaskOutput(t)
+	output, err = readTaskOutput(task)
 	if err != nil {
 		errorLog.Printf("Failed to read task run log: %v", err)
 		http.Error(w, "ERROR: Failed to read task run log", http.StatusInternalServerError)
@@ -1053,32 +990,42 @@ func httpLastOutput(w http.ResponseWriter, r *http.Request, httpQPars *HTTPQuery
 	w.Write([]byte(output))
 }
 
-func httpParseJobRunTask(r *http.Request, httpQPars *HTTPQueryParams, JC *JobsAndCron) {
-	//todo: use errors instead of -1
+func httpParseJobRunTask(r *http.Request, JC *JobsAndCron) (*Job, *JobRun, *TaskRun) {
+	var jb *Job
+	var run *JobRun
+	var task *TaskRun
 	job_str := r.URL.Query().Get("job")
-	jb, err := strconv.Atoi(job_str)
+	jb_id, err := strconv.Atoi(job_str)
 	if err != nil {
-		jb = -1
-	} else if jb < 0 || jb >= len(JC.Jobs) {
-		jb = -1
+		return nil, nil, nil
 	}
-	httpQPars.jobIndex = jb
+	// todo: use map[int] *Job in JobsAndCron
+	for _, job := range JC.Jobs {
+		if job.Id == jb_id {
+			jb = job
+			break
+		}
+	}
+	if jb == nil {
+		return nil, nil, nil
+	}
 	run_str := r.URL.Query().Get("run")
-	run, err := strconv.Atoi(run_str)
+	run_idx, err := strconv.Atoi(run_str)
 	if err != nil {
-		run = -1
-	} else if jb != -1 && (run < 0 || run >= len(JC.Jobs[jb].RunHistory)) {
-		run = -1
+		return jb, nil, nil
+	} else if run_idx < 0 || run_idx >= len(jb.RunHistory) {
+		return jb, nil, nil
 	}
-	httpQPars.runIndex = run
+	run = jb.RunHistory[run_idx]
 	task_str := r.URL.Query().Get("task")
-	task, err := strconv.Atoi(task_str)
+	task_idx, err := strconv.Atoi(task_str)
 	if err != nil {
-		task = -1
-	} else if jb != -1 && run != -1 && (task < 0 || task >= len(JC.Jobs[jb].RunHistory[run].TasksHistory)) {
-		task = -1
+		return jb, run, nil
+	} else if task_idx < 0 || task_idx >= len(run.TasksHistory) {
+		return jb, run, nil
 	}
-	httpQPars.taskIndex = task
+	task = run.TasksHistory[task_idx]
+	return jb, run, task
 }
 
 func httpParsingErrors(w http.ResponseWriter, r *http.Request) {
