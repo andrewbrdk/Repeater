@@ -115,6 +115,7 @@ type Job struct {
 type JobsAndCron struct {
 	Jobs       map[int]*Job
 	cron       *cron.Cron
+	parser     cron.Parser
 	jobCounter int
 	//todo: add config, make global?
 	//no need for mutex?
@@ -129,9 +130,11 @@ func main() {
 	errorLog = log.New(os.Stdout, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 	webLog = log.New(&webLogBuf, "", log.Ldate|log.Ltime)
 	JC := &JobsAndCron{
-		Jobs: make(map[int]*Job),
-		cron: cron.New(cron.WithSeconds()),
+		Jobs:       make(map[int]*Job),
+		parser:     cron.NewParser(cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow),
+		jobCounter: 0,
 	}
+	JC.cron = cron.New(cron.WithParser(JC.parser))
 	JC.cron.Start()
 	scanAndScheduleJobs(JC)
 	go startFSWatcher(JC)
@@ -212,7 +215,7 @@ func scanAndScheduleJobs(JC *JobsAndCron) {
 	removeJobsWithoutFiles(files, JC)
 	for f := range files {
 		infoLog.Printf("Loading %s", f)
-		jb, err := processJobFile(f)
+		jb, err := processJobFile(f, JC)
 		if jb != nil && err == nil {
 			scheduleJob(jb, JC)
 		} else {
@@ -243,7 +246,6 @@ func scanFiles(files map[string][16]byte) error {
 }
 
 func removeJobsWithoutFiles(files map[string][16]byte, JC *JobsAndCron) {
-	//todo: simplify removing
 	var toremove []int
 	for id, jb := range JC.Jobs {
 		md5, haskey := files[jb.file]
@@ -267,7 +269,7 @@ func removeJobsWithoutFiles(files map[string][16]byte, JC *JobsAndCron) {
 	}
 }
 
-func processJobFile(filePath string) (*Job, error) {
+func processJobFile(filePath string, JC *JobsAndCron) (*Job, error) {
 	var jb Job
 	jb.file = filePath
 	jb.OnOff = false
@@ -352,13 +354,11 @@ func processJobFile(filePath string) (*Job, error) {
 			if _, ok := jb.taskMap[taskName]; !ok {
 				errorLog.Printf("%s: Task '%s' in Order is not defined. Skipping job altogether.\n", filePath, taskName)
 				webLog.Printf("%s: Task '%s' in Order is not defined. Skipping job altogether. \n", filePath, taskName)
-				return nil, errors.New("task in Order not defined")
+				return nil, errors.New("Task in Order is not defined")
 			}
 		}
 	}
-	//todo: move parser spec into JobsAndCron
-	specParser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-	_, err = specParser.Parse(jb.Cron)
+	_, err = JC.parser.Parse(jb.Cron)
 	if jb.Cron != "" && err != nil {
 		errorLog.Printf("%s: can't parse cron \"%s\". %v.\n", filePath, jb.Cron, err)
 		webLog.Printf("%s: can't parse cron \"%s\". %v.\n", filePath, jb.Cron, err)

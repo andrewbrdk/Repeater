@@ -1,5 +1,5 @@
 title = "wiki"
-cron = "0 55 * * * *"
+cron = "55 * * * *"
 
 [[tasks]]
 name = "wiki_stats"
