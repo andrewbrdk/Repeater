@@ -520,12 +520,12 @@ class XJob extends HTMLElement {
 		let html = `<div class="states-table-container">
 			<table class="states">
 			<tr>`;
-		this.job.RunHistory.forEach((run, runIndex) => {
+		this.job.RunHistory.forEach(run => {
 			tooltip = `Scheduled: ${this.formatDateTime(new Date(run.ScheduledTime))}`
-			selected = (!this.#collapsed && this.#selectedRun === runIndex && this.#selectedTask === null) ? 'selected' : '';
+			selected = (!this.#collapsed && this.#selectedRun === run.Idx && this.#selectedTask === null) ? 'selected' : '';
 			html += `
-				<th id="job${this.jobIndex}run${runIndex}" class="states ${selected}">
-				<a href="/#job${this.jobIndex}run${runIndex}" data-runidx="${runIndex}" tooltip="${tooltip}">${this.getHTMLStatus(run.Status)}</a>
+				<th id="job${this.jobIndex}run${run.Idx}" class="states ${selected}">
+				<a href="/#job${this.jobIndex}run${run.Idx}" data-runidx="${run.Idx}" tooltip="${tooltip}">${this.getHTMLStatus(run.Status)}</a>
 				</th>`;
 		});
 		let next_scheduled = `<span> </span>`;
@@ -539,14 +539,14 @@ class XJob extends HTMLElement {
 			</tr>`
 		let taskIndex = 0;
 		let visibility = this.#collapsed ? 'collapse' : 'visible';
-		this.job.Order.forEach((group, groupIdx) => {
-			group.forEach((taskName) => {	
+		this.job.Order.forEach(group => {
+			group.forEach(taskName => {	
 				html += `<tr style="visibility: ${visibility};">`;
-				this.job.RunHistory.forEach((run, runIndex) => {
-					selected = (!this.#collapsed && this.#selectedRun === runIndex && this.#selectedTask === taskIndex) ? 'selected' : '';
+				this.job.RunHistory.forEach(run => {
+					selected = (!this.#collapsed && this.#selectedRun === run.Idx && this.#selectedTask === taskIndex) ? 'selected' : '';
 					html += `
-						<td id="job${this.jobIndex}run${runIndex}task${taskIndex}" class="states ${selected}">
-						<a href="/#job${this.jobIndex}run${runIndex}task${taskIndex}" data-runidx="${runIndex}" data-taskidx="${taskIndex}">${this.getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
+						<td id="job${this.jobIndex}run${run.Idx}task${taskIndex}" class="states ${selected}">
+						<a href="/#job${this.jobIndex}run${run.Idx}task${taskIndex}" data-runidx="${run.Idx}" data-taskidx="${taskIndex}">${this.getHTMLStatus(run.TasksHistory[taskIndex].Status)}</a>
 						</td>`;
 				});
 				html += `
@@ -572,8 +572,8 @@ class XJob extends HTMLElement {
 			<th class="onoff_btn">${onoff_btn_html}</th>
 			</tr>`;
 		let visibility = this.#collapsed ? 'collapse' : 'visible';
-		this.job.Order.forEach((group, groupIdx) => {
-			group.forEach((taskName) => {
+		this.job.Order.forEach(group => {
+			group.forEach(taskName => {
 				html += `<tr style="visibility: ${visibility};">
 				<td class="schedule"> </td>
 				<td class="runnow_btn"> </td>
