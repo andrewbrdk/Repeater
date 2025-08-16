@@ -987,13 +987,7 @@ func httpParseJobRunTask(r *http.Request, JC *JobsAndCron) (*Job, *JobRun, *Task
 	if err != nil {
 		return nil, nil, nil
 	}
-	// todo: use map[int] *Job in JobsAndCron
-	for _, job := range JC.Jobs {
-		if job.Id == jb_id {
-			jb = job
-			break
-		}
-	}
+	jb = JC.Jobs[jb_id]
 	if jb == nil {
 		return nil, nil, nil
 	}
