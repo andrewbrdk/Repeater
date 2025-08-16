@@ -993,17 +993,13 @@ func httpParseJobRunTask(r *http.Request, JC *JobsAndCron) (*Job, *JobRun, *Task
 	}
 	run_str := r.URL.Query().Get("run")
 	run_idx, err := strconv.Atoi(run_str)
-	if err != nil {
-		return jb, nil, nil
-	} else if run_idx < 0 || run_idx >= len(jb.RunHistory) {
+	if err != nil || run_idx < 0 || run_idx >= len(jb.RunHistory) {
 		return jb, nil, nil
 	}
 	run = jb.RunHistory[run_idx]
 	task_str := r.URL.Query().Get("task")
 	task_idx, err := strconv.Atoi(task_str)
-	if err != nil {
-		return jb, run, nil
-	} else if task_idx < 0 || task_idx >= len(run.TasksHistory) {
+	if err != nil || task_idx < 0 || task_idx >= len(run.TasksHistory) {
 		return jb, run, nil
 	}
 	task = run.TasksHistory[task_idx]
