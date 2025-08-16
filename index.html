@@ -290,11 +290,11 @@ class XRepeater extends HTMLElement {
 	async renderJobs(jobs_data) {
 		this.#jobsData = jobs_data;
 		let xjobs = [];
-		for await (const [jobIndex, job] of this.#jobsData['Jobs'].entries()) {
+		for await (const [_, job] of this.#jobsData['Jobs'].entries()) {
+			let jobIndex = job.Id;
 			let j = document.createElement('x-job');
 			let existing_job = this.#allJobs.querySelector(`#job${jobIndex}`);
 			let {collapsed, selectedRun, selectedTask, scrollPosition} = existing_job ? existing_job.getDisplayedState() : {collapsed: true, selectedRun: null, selectedTask: null, scrollPosition: null};
-			//todo: match by job id
 			await j.init(job, jobIndex, collapsed, selectedRun, selectedTask, scrollPosition);			
 			xjobs.push(j);
 		}
