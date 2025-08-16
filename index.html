@@ -290,7 +290,10 @@ class XRepeater extends HTMLElement {
 	async renderJobs(jobs_data) {
 		this.#jobsData = jobs_data;
 		let xjobs = [];
-		for await (const [_, job] of this.#jobsData['Jobs'].entries()) {
+		let sortedJobs = Object.values(this.#jobsData['Jobs']).sort((a, b) => {
+        	return a.Title.localeCompare(b.Title);
+    	});
+		for await (const [_, job] of sortedJobs.entries()) {
 			let jobIndex = job.Id;
 			let j = document.createElement('x-job');
 			let existing_job = this.#allJobs.querySelector(`#job${jobIndex}`);
