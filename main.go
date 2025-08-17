@@ -222,8 +222,7 @@ func scanAndScheduleJobs(JC *JobsAndCron) {
 			infoLog.Printf("Skipping %s", f)
 		}
 	}
-	//todo: gen_event()
-	broadcastSSEUpdate(`{"event": "jobs_updated"}`)
+	generateEvent("jobs_updated", nil, nil)
 }
 
 func scanFiles(files map[string][16]byte) error {
@@ -466,7 +465,7 @@ func runJob(run *JobRun, jb *Job) error {
 	}()
 	run.Status = Running
 	infoLog.Printf("Running '%s'", jb.Title)
-	broadcastSSEUpdate(fmt.Sprintf(`{"event": "job_running", "name": "%s"}`, jb.Title))
+	generateEvent("job_running", run, nil)
 	var jobFail bool
 	idx := 0
 	for _, parallelGroup := range jb.Order {
@@ -510,7 +509,7 @@ func runJob(run *JobRun, jb *Job) error {
 		run.Status = RunFailure
 	}
 	run.EndTime = time.Now()
-	broadcastSSEUpdate(fmt.Sprintf(`{"event": "job_finished", "name": "%s"}`, jb.Title))
+	generateEvent("job_finished", run, nil)
 	//todo: return error
 	return nil
 }
@@ -555,7 +554,7 @@ func runTask(ctx context.Context, tr *TaskRun) error {
 			tr.ctxCancelFn = nil
 		}
 	}()
-	broadcastSSEUpdate(fmt.Sprintf(`{"event": "task_running", "name": "%s"}`, tr.Name))
+	generateEvent("task_running", nil, tr)
 	output, err := executeCmd(execCtx, tr.RenderedCmd)
 	tr.EndTime = time.Now()
 	if err != nil {
@@ -567,7 +566,7 @@ func runTask(ctx context.Context, tr *TaskRun) error {
 		tr.Status = RunSuccess
 	}
 	saveOutputOnDisk(output, tr)
-	broadcastSSEUpdate(fmt.Sprintf(`{"event": "task_finished", "name": "%s"}`, tr.Name))
+	generateEvent("task_finished", nil, tr)
 	return err
 }
 
@@ -633,6 +632,24 @@ func readTaskOutput(tr *TaskRun) (string, error) {
 		return "", fmt.Errorf("failed to read logfile %s: %w", tr.logfile, err)
 	}
 	return string(data), nil
+}
+
+func generateEvent(eventName string, run *JobRun, task *TaskRun) {
+	broadcastSSEUpdate(fmt.Sprintf(`{"event": "%s"}`, eventName))
+	// if run != nil && run.Status == RunSuccess {
+	// 	for _, candidate := range JC.Jobs {
+	// 		if len(candidate.DependsOn) == 0 || !candidate.OnOff {
+	// 			continue
+	// 		}
+	// 		for _, dep := range candidate.DependsOn {
+	// 			if dep == JC.Jobs[run.jobId].Title {
+	// 				infoLog.Printf("Triggering job '%s' after dependency '%s' succeeded", candidate.Title, dep)
+	// 				go runNow(candidate)
+	// 				break
+	// 			}
+	// 		}
+	// 	}
+	// }
 }
 
 func notifyTaskFailure(tr *TaskRun) {
@@ -710,7 +727,6 @@ func cancelJobRun(jb *Job, run *JobRun) {
 		cancelTaskRun(tr, run)
 	}
 	updateJobRunStatusFromTasks(run)
-	broadcastSSEUpdate(fmt.Sprintf(`{"event": "job_cancel", "title": "%s"}`, jb.Title))
 }
 
 func cancelTaskRun(taskRun *TaskRun, jobRun *JobRun) {
@@ -725,8 +741,8 @@ func cancelTaskRun(taskRun *TaskRun, jobRun *JobRun) {
 			panic("Can't cancel a running task. This is not supposed to happen.")
 		}
 	}
+	generateEvent("task_canceled", nil, taskRun)
 	updateJobRunStatusFromTasks(jobRun)
-	broadcastSSEUpdate(fmt.Sprintf(`{"event": "task_cancel", "name": "%s"}`, taskRun.Name))
 }
 
 func cancelActiveJobRuns(jb *Job) {
@@ -753,6 +769,7 @@ func updateJobRunStatusFromTasks(jobRun *JobRun) {
 		}
 	}
 	jobRun.Status = RunSuccess
+	generateEvent("job_updated", jobRun, nil)
 }
 
 func jobOnOff(jb *Job, JC *JobsAndCron) error {
