@@ -38,7 +38,19 @@ var errorLog *log.Logger
 var webLog *log.Logger
 var webLogBuf strings.Builder
 
+var JC JobsAndCron
 var CONF Config
+
+type JobsAndCron struct {
+	Jobs       map[int]*Job
+	cron       *cron.Cron
+	parser     cron.Parser
+	jobCounter int
+	//todo: add config?
+	//no need for mutex?
+	//Jobs is modified from scanAndScheduleJobs only
+	//calls to scanAndScheduleJobs don't overlap
+}
 
 type Config struct {
 	port     string
@@ -84,6 +96,7 @@ type TaskRun struct {
 
 type JobRun struct {
 	Idx           int
+	jobId         int
 	ScheduledTime time.Time
 	StartTime     time.Time
 	EndTime       time.Time
@@ -99,6 +112,7 @@ type Job struct {
 	Title          string `toml:"title"`
 	Cron           string `toml:"cron"`
 	HCron          string
+	Listens        []string   `toml:"listens"`
 	Tasks          []*Task    `toml:"tasks"`
 	Order          [][]string `toml:"order"`
 	OrderProvided  bool       `toml:"-"`
@@ -112,33 +126,22 @@ type Job struct {
 	Emails         []string `toml:"emails"`
 }
 
-type JobsAndCron struct {
-	Jobs       map[int]*Job
-	cron       *cron.Cron
-	parser     cron.Parser
-	jobCounter int
-	//todo: add config, make global?
-	//no need for mutex?
-	//Jobs is modified from scanAndScheduleJobs only
-	//calls to scanAndScheduleJobs don't overlap
-}
-
 func main() {
 	initConfig()
 	jwtSecretKey = generateRandomKey(32)
 	infoLog = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 	errorLog = log.New(os.Stdout, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 	webLog = log.New(&webLogBuf, "", log.Ldate|log.Ltime)
-	JC := &JobsAndCron{
+	JC = JobsAndCron{
 		Jobs:       make(map[int]*Job),
 		parser:     cron.NewParser(cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow),
 		jobCounter: 0,
 	}
 	JC.cron = cron.New(cron.WithParser(JC.parser))
 	JC.cron.Start()
-	scanAndScheduleJobs(JC)
-	go startFSWatcher(JC)
-	httpServer(JC)
+	scanAndScheduleJobs()
+	go startFSWatcher()
+	httpServer()
 }
 
 func initConfig() {
@@ -172,13 +175,13 @@ func generateRandomKey(size int) []byte {
 	return key
 }
 
-func startFSWatcher(JC *JobsAndCron) {
+func startFSWatcher() {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer watcher.Close()
-	go watchFS(JC, watcher)
+	go watchFS(watcher)
 	err = watcher.Add(CONF.jobsDir)
 	if err != nil {
 		log.Fatal(err)
@@ -186,14 +189,14 @@ func startFSWatcher(JC *JobsAndCron) {
 	select {}
 }
 
-func watchFS(JC *JobsAndCron, watcher *fsnotify.Watcher) {
+func watchFS(watcher *fsnotify.Watcher) {
 	for {
 		select {
 		case _, ok := <-watcher.Events:
 			if !ok {
 				return
 			}
-			scanAndScheduleJobs(JC)
+			scanAndScheduleJobs()
 			//todo: avoid full rescan on each event
 		case err, ok := <-watcher.Errors:
 			if !ok {
@@ -204,7 +207,7 @@ func watchFS(JC *JobsAndCron, watcher *fsnotify.Watcher) {
 	}
 }
 
-func scanAndScheduleJobs(JC *JobsAndCron) {
+func scanAndScheduleJobs() {
 	files := make(map[string][16]byte)
 	err := scanFiles(files)
 	webLogBuf.Reset()
@@ -212,12 +215,12 @@ func scanAndScheduleJobs(JC *JobsAndCron) {
 		errorLog.Printf("Errors while reading files: %s", err)
 		webLog.Printf("Errors while reading files: %s", err)
 	}
-	removeJobsWithoutFiles(files, JC)
+	removeJobsWithoutFiles(files)
 	for f := range files {
 		infoLog.Printf("Loading %s", f)
-		jb, err := processJobFile(f, JC)
+		jb, err := processJobFile(f)
 		if jb != nil && err == nil {
-			scheduleJob(jb, JC)
+			scheduleJob(jb)
 		} else {
 			infoLog.Printf("Skipping %s", f)
 		}
@@ -244,7 +247,7 @@ func scanFiles(files map[string][16]byte) error {
 	return err
 }
 
-func removeJobsWithoutFiles(files map[string][16]byte, JC *JobsAndCron) {
+func removeJobsWithoutFiles(files map[string][16]byte) {
 	var toremove []int
 	for id, jb := range JC.Jobs {
 		md5, haskey := files[jb.file]
@@ -268,7 +271,7 @@ func removeJobsWithoutFiles(files map[string][16]byte, JC *JobsAndCron) {
 	}
 }
 
-func processJobFile(filePath string, JC *JobsAndCron) (*Job, error) {
+func processJobFile(filePath string) (*Job, error) {
 	var jb Job
 	jb.file = filePath
 	jb.OnOff = false
@@ -373,7 +376,7 @@ func processJobFile(filePath string, JC *JobsAndCron) (*Job, error) {
 	return &jb, nil
 }
 
-func scheduleJob(jb *Job, JC *JobsAndCron) {
+func scheduleJob(jb *Job) {
 	var err error
 	jb.Id = JC.jobCounter
 	JC.Jobs[JC.jobCounter] = jb
@@ -412,6 +415,7 @@ func initRun(jb *Job, c *cron.Cron) *JobRun {
 	}
 	run := &JobRun{
 		Idx:           len(jb.RunHistory),
+		jobId:         jb.Id,
 		ScheduledTime: scheduled_time,
 		StartTime:     time.Now(),
 	}
@@ -636,20 +640,21 @@ func readTaskOutput(tr *TaskRun) (string, error) {
 
 func generateEvent(eventName string, run *JobRun, task *TaskRun) {
 	broadcastSSEUpdate(fmt.Sprintf(`{"event": "%s"}`, eventName))
-	// if run != nil && run.Status == RunSuccess {
-	// 	for _, candidate := range JC.Jobs {
-	// 		if len(candidate.DependsOn) == 0 || !candidate.OnOff {
-	// 			continue
-	// 		}
-	// 		for _, dep := range candidate.DependsOn {
-	// 			if dep == JC.Jobs[run.jobId].Title {
-	// 				infoLog.Printf("Triggering job '%s' after dependency '%s' succeeded", candidate.Title, dep)
-	// 				go runNow(candidate)
-	// 				break
-	// 			}
-	// 		}
-	// 	}
-	// }
+	// todo: use channels?
+	if run != nil && run.Status == RunSuccess {
+		for _, jb := range JC.Jobs {
+			if len(jb.Listens) == 0 || !jb.OnOff {
+				continue
+			}
+			for _, jobTitle := range jb.Listens {
+				if jobTitle == JC.Jobs[run.jobId].Title {
+					infoLog.Printf("Triggering job '%s' on success of '%s'", jb.Title, jobTitle)
+					go runNow(jb)
+					break
+				}
+			}
+		}
+	}
 }
 
 func notifyTaskFailure(tr *TaskRun) {
@@ -772,7 +777,7 @@ func updateJobRunStatusFromTasks(jobRun *JobRun) {
 	generateEvent("job_updated", jobRun, nil)
 }
 
-func jobOnOff(jb *Job, JC *JobsAndCron) error {
+func jobOnOff(jb *Job) error {
 	jb.OnOff = !jb.OnOff
 	if jb.OnOff {
 		jb.NextScheduled = JC.cron.Entry(jb.cronID).Next
@@ -790,28 +795,16 @@ func runNow(jb *Job) error {
 	return nil
 }
 
-func httpServer(JC *JobsAndCron) {
+func httpServer() {
 	http.HandleFunc("/", httpIndex)
 	http.HandleFunc("/login", httpLogin)
-	http.HandleFunc("/jobs", func(w http.ResponseWriter, r *http.Request) {
-		httpJobs(w, r, JC)
-	})
+	http.HandleFunc("/jobs", httpJobs)
 	http.HandleFunc("/events", httpEvents)
-	http.HandleFunc("/onoff", func(w http.ResponseWriter, r *http.Request) {
-		httpOnOff(w, r, JC)
-	})
-	http.HandleFunc("/restart", func(w http.ResponseWriter, r *http.Request) {
-		httpRestart(w, r, JC)
-	})
-	http.HandleFunc("/cancel", func(w http.ResponseWriter, r *http.Request) {
-		httpCancel(w, r, JC)
-	})
-	http.HandleFunc("/runnow", func(w http.ResponseWriter, r *http.Request) {
-		httpRunNow(w, r, JC)
-	})
-	http.HandleFunc("/lastoutput", func(w http.ResponseWriter, r *http.Request) {
-		httpLastOutput(w, r, JC)
-	})
+	http.HandleFunc("/onoff", httpOnOff)
+	http.HandleFunc("/restart", httpRestart)
+	http.HandleFunc("/cancel", httpCancel)
+	http.HandleFunc("/runnow", httpRunNow)
+	http.HandleFunc("/lastoutput", httpLastOutput)
 	http.HandleFunc("/parsingerrors", httpParsingErrors)
 	log.Fatal(http.ListenAndServe(CONF.port, nil))
 }
@@ -885,7 +878,7 @@ func httpCheckAuth(w http.ResponseWriter, r *http.Request) (error, int, string) 
 	return nil, http.StatusOK, "Ok"
 }
 
-func httpJobs(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
+func httpJobs(w http.ResponseWriter, r *http.Request) {
 	err, code, msg := httpCheckAuth(w, r)
 	if err != nil {
 		http.Error(w, msg, code)
@@ -901,29 +894,29 @@ func httpJobs(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
 	w.Write(jData)
 }
 
-func httpOnOff(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
+func httpOnOff(w http.ResponseWriter, r *http.Request) {
 	err, code, msg := httpCheckAuth(w, r)
 	if err != nil {
 		http.Error(w, msg, code)
 		return
 	}
-	job, _, _ := httpParseJobRunTask(r, JC)
+	job, _, _ := httpParseJobRunTask(r)
 	if job == nil {
 		http.Error(w, "Job not found", http.StatusNotFound)
 		return
 	}
-	jobOnOff(job, JC)
+	jobOnOff(job)
 	// todo: w.Write(json.Marshal(JC))
 	w.WriteHeader(http.StatusOK)
 }
 
-func httpRestart(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
+func httpRestart(w http.ResponseWriter, r *http.Request) {
 	err, code, msg := httpCheckAuth(w, r)
 	if err != nil {
 		http.Error(w, msg, code)
 		return
 	}
-	job, run, task := httpParseJobRunTask(r, JC)
+	job, run, task := httpParseJobRunTask(r)
 	if run != nil && task != nil {
 		//todo: check concurrency issues
 		go restartTaskRun(task, run)
@@ -937,13 +930,13 @@ func httpRestart(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func httpCancel(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
+func httpCancel(w http.ResponseWriter, r *http.Request) {
 	err, code, msg := httpCheckAuth(w, r)
 	if err != nil {
 		http.Error(w, msg, code)
 		return
 	}
-	job, run, task := httpParseJobRunTask(r, JC)
+	job, run, task := httpParseJobRunTask(r)
 	if run != nil && task != nil {
 		//todo: check concurrency issues
 		go cancelTaskRun(task, run)
@@ -957,13 +950,13 @@ func httpCancel(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func httpRunNow(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
+func httpRunNow(w http.ResponseWriter, r *http.Request) {
 	err, code, msg := httpCheckAuth(w, r)
 	if err != nil {
 		http.Error(w, msg, code)
 		return
 	}
-	job, _, _ := httpParseJobRunTask(r, JC)
+	job, _, _ := httpParseJobRunTask(r)
 	if job == nil {
 		http.Error(w, "Job not found", http.StatusNotFound)
 		return
@@ -973,13 +966,13 @@ func httpRunNow(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func httpLastOutput(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
+func httpLastOutput(w http.ResponseWriter, r *http.Request) {
 	err, code, msg := httpCheckAuth(w, r)
 	if err != nil {
 		http.Error(w, msg, code)
 		return
 	}
-	_, _, task := httpParseJobRunTask(r, JC)
+	_, _, task := httpParseJobRunTask(r)
 	if task == nil {
 		http.Error(w, "Task not found", http.StatusNotFound)
 		return
@@ -995,7 +988,7 @@ func httpLastOutput(w http.ResponseWriter, r *http.Request, JC *JobsAndCron) {
 	w.Write([]byte(output))
 }
 
-func httpParseJobRunTask(r *http.Request, JC *JobsAndCron) (*Job, *JobRun, *TaskRun) {
+func httpParseJobRunTask(r *http.Request) (*Job, *JobRun, *TaskRun) {
 	var jb *Job
 	var run *JobRun
 	var task *TaskRun
