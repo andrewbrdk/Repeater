@@ -532,7 +532,7 @@ class XJob extends HTMLElement {
 				</th>`;
 		});
 		let next_scheduled = `<span> </span>`;
-		if (this.job.OnOff) {
+		if (this.job.OnOff && this.job.Cron != "") {
 			tooltip = this.job.NextScheduled != "0001-01-01T00:00:00Z" ? `Scheduled: ${this.formatDateTime(new Date(this.job.NextScheduled))}` : '--';
 			next_scheduled = `<span tooltip="${tooltip}">□</span>`;
 		}
@@ -563,12 +563,23 @@ class XJob extends HTMLElement {
 	}
 
 	taskScheduleTableHTML() {
+		let schedule_text = "";
+		if (this.job.Cron != "" && this.job.Listens) {
+			schedule_text += escapeHTML(this.job.HCron);
+			schedule_text += ' or on success any of ';
+			schedule_text += escapeHTML(this.job.Listens.map(s => `"${s.replace(/ /g, "\u00A0")}"`).join(', '));
+		} else if (this.job.Cron != "") {
+			schedule_text += escapeHTML(this.job.HCron);
+		} else if (this.job.Listens) {
+			schedule_text += 'On success any of ';
+			schedule_text += escapeHTML(this.job.Listens.map(s => `"${s.replace(/ /g, "\u00A0")}"`).join(', '));
+		}
 		let html = `<table class="schedule">
 			<tr>
-			<th class="schedule">${escapeHTML(this.job.HCron)}</th>
+			<th class="schedule">${schedule_text}</th>
 			<th class="runnow_btn"><button class="runnow_btn">Run Now</button></th>`;
 		let onoff_btn_html = ""
-		if (this.job.Cron != "") {
+		if (this.job.Cron != "" || this.job.Listens) {
 			onoff_btn_html = `<button class="onoff_btn">${this.job.OnOff ? 'Turn Off' : 'Turn On'}</button>`;
 		}
 		html += `
