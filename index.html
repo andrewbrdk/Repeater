@@ -144,12 +144,16 @@
 			min-width: 9rem;
 			max-width: 9rem;
 			text-align: right;
+			vertical-align: top;
 			/* white-space: nowrap; */
-			/*text-overflow: ellipsis;*/
+			/* text-overflow: ellipsis; */
 			white-space: pre-wrap;
 			overflow: hidden;
 			font-style: italic;
 			font-size: 0.85em;
+		}
+		x-job th.schedule span {
+			cursor: pointer;
 		}
 		x-job th.runnow_btn, x-job td.runnow_btn {
 			width: 6rem;
@@ -445,6 +449,8 @@ class XJob extends HTMLElement {
 				await this.update();
 			} else if (e.target.closest('span.task_names')) {
 				this.showHide();
+			} else if (e.target.closest('span.schedule')) {
+				this.showHide();
 			}
 		};
 
@@ -576,7 +582,7 @@ class XJob extends HTMLElement {
 		}
 		let html = `<table class="schedule">
 			<tr>
-			<th class="schedule">${schedule_text}</th>
+			<th class="schedule" rowspan="${1 + this.job.Order.flat().length}"><span class="schedule">${schedule_text}</span></th>
 			<th class="runnow_btn"><button class="runnow_btn">Run Now</button></th>`;
 		let onoff_btn_html = ""
 		if (this.job.Cron != "" || this.job.Listens) {
