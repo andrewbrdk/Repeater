@@ -41,10 +41,11 @@ REPEATER_LOGS_DIRECTORY="/tmp/repeater/"       # tasks output directory
 Job example
 ```toml
 title = "example"
-cron = "*/10 * * * * *"            # cron schedule with ("0 */5 * * * *") or without seconds ("*/5 * * * *"), optional
-retries = 1                        # task retries, optional
-task_timeout = 15                  # execution timeout, seconds, optional
-emails = ["yourmail@example.com"]  # email on failure, optional
+cron = "*/10 * * * * *"            # Cron schedule with ("0 */5 * * * *") or without seconds ("*/5 * * * *"), optional
+listens = ["hello, world"]         # The job starts after any of the listed jobs succeed, optional
+retries = 1                        # Number of task retries, optional
+task_timeout = 15                  # Execution timeout in seconds, optional
+emails = ["yourmail@example.com"]  # Email recipients on failure, optional
 
 # Task execution order, optional.
 # List of lists of task names. 
@@ -59,9 +60,9 @@ order = [
 [[tasks]]
 name = "hello_world"
 cmd = "echo Hello, world"
-timeout = 15                       # overrides job-level task_timeout 
-retries = 2                        # overrides job-level retries
-emails = ["taskmail@example.com"]  # overrides job-level emails
+timeout = 15                       # Overrides job-level task_timeout 
+retries = 2                        # Overrides job-level retries
+emails = ["taskmail@example.com"]  # Overrides job-level emails
 
 [[tasks]]
 name = "wait_5s" 
