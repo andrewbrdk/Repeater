@@ -98,7 +98,7 @@
 			width: 100%;
 		}
 		x-job table.task_names {
-			flex: 1 1 20%;
+			flex: 1 1 22%;
 			table-layout: fixed;
 		}
 		x-job table.states {
@@ -106,7 +106,7 @@
 			table-layout: fixed;
 		}
 		x-job table.schedule {
-			flex: 1 1 20%;
+			flex: 1 1 18%;
 			table-layout: fixed;
 		}
 		x-job table th {
@@ -118,6 +118,14 @@
 		x-job table td {
 			vertical-align: middle;
 		}
+		x-job th.collapse_btn, x-job td.collapse_btn {
+			width: 0.8rem;
+			min-width: 0.8rem;
+			max-width: 0.8rem;
+			text-align: center;
+			cursor: pointer;
+			color: #00000000;
+		}
 		x-job th.task_names, x-job td.task_names {
 			width: 15rem;
 			min-width: 15rem;
@@ -128,12 +136,10 @@
  			text-overflow: ellipsis;
  			white-space: nowrap;
 			text-align: left;
+			cursor: pointer;
 		}
 		x-job th strong {
 			font-weight: 600;
-		}
-		x-job span.task_names {
-			cursor: pointer;
 		}
 		x-job th.states, x-job td.states {
 			text-align: center;
@@ -463,11 +469,18 @@ class XJob extends HTMLElement {
 				this.#selectedRun = parseInt(e.target.dataset.runidx);
 				this.#selectedTask = e.target.dataset.taskidx ? parseInt(e.target.dataset.taskidx) : null;
 				await this.update();
-			} else if (e.target.closest('span.task_names')) {
+			} else if (e.target.closest('table.task_names')) {
 				this.showHide();
 			} else if (e.target.closest('span.schedule')) {
 				this.showHide();
 			}
+		};
+
+		this.onmouseenter = () => {
+			this.querySelector('th.collapse_btn').style.color = 'black';
+		};
+		this.onmouseleave = () => {
+			this.querySelector('th.collapse_btn').style.color = '#00000000';
 		};
 
 		this.querySelectorAll('[tooltip]').forEach(el => {
@@ -490,6 +503,8 @@ class XJob extends HTMLElement {
 	
 	unbindEvents() {
 		this.onclick = null;
+		this.onmouseenter = null;
+		this.onmouseleave = null;
 		this.querySelectorAll('button').forEach(btn => btn.onclick = null);
 		this.querySelector('div.states-table-container').onscroll = null;
 	}
@@ -523,6 +538,7 @@ class XJob extends HTMLElement {
 		let html = `
 		<table class="task_names">
 			<tr>
+			<th class="collapse_btn"><strong>${this.#collapsed ? '+' : '-'}</strong></th>
 			<th class="task_names"><span class="task_names"><strong>${escapeHTML(this.job.Title)}</strong></span></th>
 			</tr>`;
 		let visibility = this.#collapsed ? 'collapse' : 'visible';
@@ -531,6 +547,7 @@ class XJob extends HTMLElement {
 				let offset = this.job.OrderProvided ? '&nbsp;&nbsp;'.repeat(groupIdx) : '';
 				html += `
 					<tr style="visibility: ${visibility};">
+					<td class="collapse_btn"> </td>
 					<td class="task_names"><span class="task_names">${offset + escapeHTML(taskName)}</span></td>
 					</tr>`;
 			});
