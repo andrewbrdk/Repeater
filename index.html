@@ -572,12 +572,12 @@ class XJob extends HTMLElement {
 		let schedule_text = "";
 		if (this.job.Cron != "" && this.job.Listens) {
 			schedule_text += escapeHTML(this.job.HCron);
-			schedule_text += ' or on success any of ';
+			schedule_text += this.job.Listens.length > 1 ? ' or on success any of ' : ' or on success of ';
 			schedule_text += escapeHTML(this.job.Listens.map(s => `"${s.replace(/ /g, "\u00A0")}"`).join(', '));
 		} else if (this.job.Cron != "") {
 			schedule_text += escapeHTML(this.job.HCron);
 		} else if (this.job.Listens) {
-			schedule_text += 'On success any of ';
+			schedule_text += this.job.Listens.length > 1 ? 'On success any of ' : 'On success of ';
 			schedule_text += escapeHTML(this.job.Listens.map(s => `"${s.replace(/ /g, "\u00A0")}"`).join(', '));
 		}
 		let html = `<table class="schedule">
