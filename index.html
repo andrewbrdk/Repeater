@@ -57,6 +57,9 @@
 			text-align: center;
 			transition: background-color 0.1s ease;
 		}
+		x-login button:hover {
+  			box-shadow: 0 0 0px 1px black;
+		}
 		x-login button:active {
   			background-color: #eee;
 		}
@@ -190,6 +193,10 @@
 			white-space: nowrap;
 			transition: background-color 0.1s ease;
 		}
+		x-job button.runnow_btn:hover,
+		x-job button.onoff_btn:hover {
+  			box-shadow: 0 0 0px 1px black;
+		}
 		x-job button.runnow_btn:active,
 		x-job button.onoff_btn:active {
   			background-color: #eee;
@@ -236,6 +243,12 @@
 			padding: 5px 10px;
 			text-align: center;
 			transition: background-color 0.1s ease;
+		}
+		x-job button.restartJob:hover,
+		x-job button.restartTask:hover,
+		x-job button.cancelJob:hover,
+		x-job button.cancelTask:hover {
+  			box-shadow: 0 0 0px 1px black;
 		}
 		x-job button.restartJob:active,
 		x-job button.restartTask:active,
@@ -628,8 +641,9 @@ class XJob extends HTMLElement {
 		let visibility = this.#collapsed ? 'collapse' : 'visible';
 		this.job.Order.forEach(group => {
 			group.forEach(taskName => {
+				//todo: make the table same height as others 
+				//todo: don't use th.schedule rowspan?
 				html += `<tr style="visibility: ${visibility};">
-				<td class="schedule"> </td>
 				<td class="runnow_btn"> </td>
 				<td class="onoff_btn"> </td>
 				</tr>`;
