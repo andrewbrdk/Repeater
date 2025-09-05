@@ -189,9 +189,13 @@
 			font-weight: 400;
 			margin: 0 5px;
 			padding: 5px 10px;
+			min-width: 3rem;
 			text-align: center;
 			white-space: nowrap;
 			transition: background-color 0.1s ease;
+		}
+		x-job button.onoff_btn.job_off {
+			background-color: #ddd;
 		}
 		x-job button.runnow_btn:hover,
 		x-job button.onoff_btn:hover {
@@ -633,7 +637,9 @@ class XJob extends HTMLElement {
 			<th class="runnow_btn"><button class="runnow_btn">Run Now</button></th>`;
 		let onoff_btn_html = ""
 		if (this.job.Cron != "" || this.job.Listens) {
-			onoff_btn_html = `<button class="onoff_btn">${this.job.OnOff ? 'Turn Off' : 'Turn On'}</button>`;
+			let button_text = this.job.OnOff ? 'On' : 'Off';
+			let onoff_class = this.job.OnOff ? '' : 'job_off';
+			onoff_btn_html = `<button class="onoff_btn ${onoff_class}">${button_text}</button>`;
 		}
 		html += `
 			<th class="onoff_btn">${onoff_btn_html}</th>
