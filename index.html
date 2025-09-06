@@ -152,6 +152,10 @@
 			border-bottom-style: solid;
 			border-width: medium;
 		}
+		x-job th.fill, x-job td.fill {
+			width: 10rem;
+			min-width: 10rem;
+		}
 		x-job th.schedule, x-job td.schedule {
 			width: 9rem;
 			min-width: 9rem;
@@ -595,7 +599,8 @@ class XJob extends HTMLElement {
 		}
 		html += `
 			<th class="states">${next_scheduled}</th>
-			<th class="fill"> </th>
+			<th class="fill"></th>
+			<th></th>
 			</tr>`
 		let taskIndex = 0;
 		let visibility = this.#collapsed ? 'collapse' : 'visible';
@@ -611,7 +616,8 @@ class XJob extends HTMLElement {
 				});
 				html += `
 					<td class="states"> </td>
-					<td class="fill"> </td>
+					<td class="fill"></td>
+					<td></td>
 					</tr>`;
 				taskIndex++;
 		})});
