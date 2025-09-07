@@ -671,12 +671,17 @@ class XJob extends HTMLElement {
 		const r_sch = r ? this.formatDateTime(new Date(r['ScheduledTime'])) : '';
 		let job_sel = !this.#collapsed && r;
 		let job_disp = job_sel ? 'style="display: inline-block;"' : 'style="display: none;"';
+		let job_cancel_html = '';
+		if (job_sel && r.Status == 2) {
+			job_cancel_html = `<button class="cancelJob" ${job_disp}>Cancel Job</button>`;
+		} else {
+			job_cancel_html = `<div ${job_disp}></div>`;
+		}
 		let html = '<div class="taskruninfo_grid">';
-		html += `			
-			<span class="job-schedule" ${job_disp}>Job scheduled: ${r_sch}</span>
-			<button class="restartJob" ${job_disp}>Restart Job</button>
-			<button class="cancelJob" ${job_disp}>Cancel Job</button>
-			<div ${job_disp}></div>
+		html += `<span class="job-schedule" ${job_disp}>Job scheduled: ${r_sch}</span>
+				 <button class="restartJob" ${job_disp}>Restart Job</button>
+				 ${job_cancel_html}
+				 <div ${job_disp}></div>
 		`;
 		let st = this.#selectedTask;
 		let t = r ? r.TasksHistory[st] : null;
@@ -684,10 +689,16 @@ class XJob extends HTMLElement {
 		const t_cmd = t ? t.RenderedCmd : '';
 		let task_sel = !this.#collapsed && r && t;
 		let task_disp = task_sel ? 'style="display: inline-block;"' : 'style="display: none;"';
+		let task_cancel_html = '';
+		if (task_sel && t.Status == 2) {
+			task_cancel_html = `<button class="cancelTask" ${task_disp}>Cancel Task</button>`;
+		} else {
+			task_cancel_html = `<div ${task_disp}></div>`;
+		}
 		html += `
 			<span ${task_disp}>Task started: ${t_st}</span>
 			<button class="restartTask" ${task_disp}>Restart Task</button>
-			<button class="cancelTask" ${task_disp}>Cancel Task</button>
+			${task_cancel_html}
 			<div ${task_disp}></div>	
 		</div>`
 		let last_output = '';
