@@ -131,6 +131,9 @@
 				cursor: pointer;
 				color: #00000000;
 			}
+			&:hover th.collapse_btn {
+				color: black;
+			}
 			th.task_names, td.task_names {
 				width: 15rem;
 				min-width: 15rem;
@@ -499,13 +502,6 @@ class XJob extends HTMLElement {
 			} else if (e.target.closest('span.schedule')) {
 				this.showHide();
 			}
-		};
-
-		this.onmouseenter = () => {
-			this.querySelector('th.collapse_btn').style.color = 'black';
-		};
-		this.onmouseleave = () => {
-			this.querySelector('th.collapse_btn').style.color = '#00000000';
 		};
 
 		this.querySelectorAll('[tooltip]').forEach(el => {
