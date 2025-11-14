@@ -534,8 +534,6 @@ class XJob extends HTMLElement {
 	
 	unbindEvents() {
 		this.onclick = null;
-		this.onmouseenter = null;
-		this.onmouseleave = null;
 		this.querySelectorAll('button').forEach(btn => btn.onclick = null);
 		this.querySelector('div.states-table-container').onscroll = null;
 	}
