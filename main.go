@@ -140,7 +140,7 @@ func main() {
 	JC.cron = cron.New(cron.WithParser(JC.parser))
 	JC.cron.Start()
 	scanAndScheduleJobs()
-	go startFSWatcher()
+	go watchFS()
 	httpServer()
 }
 
@@ -175,21 +175,16 @@ func generateRandomKey(size int) []byte {
 	return key
 }
 
-func startFSWatcher() {
+func watchFS() {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer watcher.Close()
-	go watchFS(watcher)
 	err = watcher.Add(CONF.jobsDir)
 	if err != nil {
 		log.Fatal(err)
 	}
-	select {}
-}
-
-func watchFS(watcher *fsnotify.Watcher) {
 	for {
 		select {
 		case _, ok := <-watcher.Events:
@@ -198,6 +193,7 @@ func watchFS(watcher *fsnotify.Watcher) {
 			}
 			scanAndScheduleJobs()
 			//todo: avoid full rescan on each event
+			//todo: debounce
 		case err, ok := <-watcher.Errors:
 			if !ok {
 				return
