@@ -493,10 +493,20 @@ class XJob extends HTMLElement {
 		this.onclick = async (e) => {
 			if (e.target.matches('table a')) {
 				e.preventDefault();
-				this.#collapsed = false;
-				this.#selectedRun = parseInt(e.target.dataset.runidx);
-				this.#selectedTask = e.target.dataset.taskidx ? parseInt(e.target.dataset.taskidx) : null;
-				await this.update();
+				const r = parseInt(e.target.dataset.runidx);
+				const t = e.target.dataset.taskidx ? parseInt(e.target.dataset.taskidx) : null;
+				if (r != null && r == this.#selectedRun && 
+				    ((t != null && t == this.#selectedTask) || (t == null && this.#selectedTask == null ))) {
+					this.#collapsed = true;
+					this.#selectedRun = null;
+					this.#selectedTask = null;
+					await this.update();
+				} else {
+					this.#collapsed = false;
+					this.#selectedRun = r 
+					this.#selectedTask = t
+					await this.update();
+				}
 			} else if (e.target.closest('table.task_names')) {
 				this.showHide();
 			} else if (e.target.closest('span.schedule')) {
